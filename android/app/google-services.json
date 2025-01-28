@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "550264739666",
+    "project_id": "wolly-1133d",
+    "storage_bucket": "wolly-1133d.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:550264739666:android:8d14c44e68dc0795d8cc8b",
+        "android_client_info": {
+          "package_name": "com.example.wolly"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAndVfAGSVltWtdKjsp40yzdXKKTqrbDss"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:550264739666:android:858596e924abad80d8cc8b",
+        "android_client_info": {
+          "package_name": "com.example.wolly_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAndVfAGSVltWtdKjsp40yzdXKKTqrbDss"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
