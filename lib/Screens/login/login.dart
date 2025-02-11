@@ -30,13 +30,21 @@ class _LoginState extends State<Login> {
                   fontWeight: FontWeight.bold,
                 )),
             SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-            const Text("Enter your email to continue"),
-            SizedBox(height: MediaQuery.of(context).size.height * 0.01),
             TextFormField(
               controller: emailController,
               decoration: InputDecoration(
                 border: OutlineInputBorder(),
                 labelText: 'Email',
+                labelStyle: TextStyle(
+                  fontSize: 12.rt,
+                  fontWeight: FontWeight.normal,
+                ),
+                contentPadding: EdgeInsets.symmetric(horizontal: 10.rw),
+                hintText: 'Enter your email',
+                hintStyle: TextStyle(
+                  fontSize: 12.rt,
+                  fontWeight: FontWeight.normal,
+                ),
               ),
             ),
             SizedBox(height: MediaQuery.of(context).size.height * 0.05),

@@ -115,7 +115,17 @@ class _OtpVerifyState extends State<OtpVerify> {
 
     /// Optionally you can use form to validate the Pinput
     return Scaffold(
-      appBar: AppBar(title: const Text('Enter OTP')),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: Text(
+          'Enter OTP',
+          style: TextStyle(
+            fontSize: 16.rt,
+            fontWeight: FontWeight.normal,
+          ),
+        ),
+        backgroundColor: Colors.white,
+      ),
       body: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -196,7 +206,7 @@ class _OtpVerifyState extends State<OtpVerify> {
                     Navigator.pushReplacementNamed(context, '/library');
                   } else {
                     Navigator.pushReplacementNamed(
-                      context, 
+                      context,
                       '/account_creation',
                       arguments: widget.email,
                     );
