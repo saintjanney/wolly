@@ -1,5 +1,5 @@
+import 'package:flexify/flexify.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:wolly/Providers/library_provider.dart';
 import 'package:wolly/models/book.dart';
 import 'package:wolly/read_book.dart';
@@ -31,13 +31,22 @@ class _LibraryState extends State<Library> {
     return Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.white,
-          title: const Text('Library'),
+          title: Text(
+            'Library',
+            style: TextStyle(
+              fontSize: 16.rt,
+              fontWeight: FontWeight.normal,
+            ),
+          ),
           actions: [
             IconButton(
               onPressed: () {
                 Navigator.pushReplacementNamed(context, '/login');
               },
-              icon: const Icon(Icons.logout_outlined),
+              icon: Icon(
+                Icons.logout_outlined,
+                size: 20.rs,
+              ),
             ),
           ],
         ),
@@ -73,10 +82,31 @@ class _LibraryState extends State<Library> {
                       );
                     }
                   },
-                  leading: Text("${index + 1}"),
-                  title: Text(books[index].title),
-                  subtitle: Text(books[index].genre),
-                  trailing: const Icon(Icons.open_in_new_sharp),
+                  leading: Text(
+                    "${index + 1}",
+                    style: TextStyle(
+                      fontSize: 12.rt,
+                      fontWeight: FontWeight.normal,
+                    ),
+                  ),
+                  title: Text(
+                    books[index].title,
+                    style: TextStyle(
+                      fontSize: 10.rt,
+                      fontWeight: FontWeight.normal,
+                    ),
+                  ),
+                  subtitle: Text(
+                    books[index].genre,
+                    style: TextStyle(
+                      fontSize: 8.rs,
+                      fontWeight: FontWeight.normal,
+                    ),
+                  ),
+                  trailing: Icon(
+                    Icons.open_in_new_sharp,
+                    size: 16.rs,
+                  ),
                 );
               }),
         ));

@@ -1,6 +1,4 @@
-import 'package:country_code_text_field/country_code_text_field.dart';
 import 'package:flexify/flexify.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:wolly/providers/auth_provider.dart';
 
