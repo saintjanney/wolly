@@ -16,6 +16,7 @@ class _LoginState extends State<Login> {
   Widget build(BuildContext context) {
     TextEditingController emailController = TextEditingController();
     return Scaffold(
+      backgroundColor: Colors.white,
       body: Padding(
         padding: EdgeInsets.symmetric(horizontal: 20.rw),
         child: Column(
