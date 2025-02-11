@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 class AuthProvider {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
-
   User? get currentUser => _firebaseAuth.currentUser;
   Future<dynamic> login(
       {required String email, required String password}) async {
@@ -25,6 +24,7 @@ class AuthProvider {
     required String lastName,
     required String countryCode,
     required String phoneNumber,
+    required DateTime dateOfBirth,
   }) async {
     try {
       // Create a new user
@@ -43,9 +43,8 @@ class AuthProvider {
           'first_name': name,
           'last_name': lastName,
           'email': email,
-          'country_code' : countryCode,
-
-
+          'country_code': countryCode,
+          'date_of_birth': dateOfBirth.toIso8601String(),
           'phone_number': phoneNumber, // Additional info like role
           'createdAt': FieldValue.serverTimestamp(), // Record creation time
         });
@@ -126,7 +125,7 @@ class AuthProvider {
     try {
       DocumentSnapshot<Map<String, dynamic>> user =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
-          print(user.data());
+      print(user.data());
       return user.data()!;
     } catch (e) {
       return {};

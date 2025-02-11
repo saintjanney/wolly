@@ -2,7 +2,7 @@ import 'package:epub_view/epub_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemChrome, SystemUiOverlayStyle;
 import 'package:wolly/models/book.dart';
-import 'package:internet_file/internet_file.dart';
+// import 'package:internet_file/internet_file.dart';
 
 // The cors policy is required on the server.
 // You can raise your cors proxy.
@@ -25,12 +25,12 @@ class _ReadEpubState extends State<ReadEpub> {
   }
 
   void _loadEpub() async {
-    final data = await InternetFile.get(widget.book.downloadUrl);
-    setState(() {
-      _epubReaderController = EpubController(
-        document: EpubDocument.openData(data),
-      );
-    });
+    // final data = await InternetFile.get(widget.book.downloadUrl);
+    // setState(() {
+    //   _epubReaderController = EpubController(
+    //     document: EpubDocument.openData(data),
+    //   );
+    // });
   }
 
   @override

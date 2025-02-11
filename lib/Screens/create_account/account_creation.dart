@@ -1,11 +1,12 @@
 import 'package:country_code_text_field/country_code_text_field.dart';
+import 'package:flexify/flexify.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:wolly/providers/auth_provider.dart';
-import 'package:wolly/screens/create_account/profile_info_screen.dart';
 
 class AccountCreationScreen extends StatefulWidget {
-  const AccountCreationScreen({super.key});
+  final String userEmail;
+  const AccountCreationScreen({super.key, required this.userEmail});
 
   @override
   _AccountCreationScreenState createState() => _AccountCreationScreenState();
@@ -22,6 +23,9 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
   late TextEditingController confirmPasswordController;
   bool isLoading = false;
   bool obscureText = true;
+  DateTime? selectedDate;
+  final DateTime minimumDate =
+      DateTime.now().subtract(const Duration(days: 365 * 8));
 
   @override
   void initState() {
@@ -61,35 +65,16 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
     return confirmPasswordController.text == passwordController.text;
   }
 
+  bool validateDateOfBirth() {
+    if (selectedDate == null) return false;
+    return selectedDate!.isBefore(minimumDate);
+  }
+
   @override
-  Widget build(BuildContext context) { 
+  Widget build(BuildContext context) {
+    emailController.text = widget.userEmail;
     return Scaffold(
       backgroundColor: Colors.white,
-      persistentFooterButtons: [
-        Padding(
-          padding: const EdgeInsets.only(
-            top: 16,
-          ),
-          child: Align(
-            alignment: Alignment.center,
-            child: RichText(
-                text: TextSpan(
-                    style: const TextStyle(color: Colors.black),
-                    children: [
-                  const TextSpan(
-                    text: "Already have an account? ",
-                  ),
-                  TextSpan(
-                      text: "Sign in",
-                      style: const TextStyle(color: Colors.black),
-                      recognizer: TapGestureRecognizer()
-                        ..onTap = () {
-                          Navigator.pushReplacementNamed(context, '/');
-                        })
-                ])),
-          ),
-        ),
-      ],
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(left: 16, right: 16, bottom: 30),
@@ -98,7 +83,7 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
             bool isValid = validateFirstName() &&
                 validateLastName() &&
                 validateEmail() &&
-                validatePhoneNumber() &&
+                validateDateOfBirth() &&
                 validatePassword() &&
                 validateConfirmPassword();
 
@@ -117,16 +102,14 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
                       email: emailController.text,
                       countryCode: initialCountryCode,
                       phoneNumber: phoneNumberController.text,
-                      password: passwordController.text)
+                      password: passwordController.text,
+                      dateOfBirth: selectedDate!)
                   .then((value) {
                 setState(() {
                   isLoading = false;
                 });
                 if (value.isEmpty) {
-                  Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const ProfileInfoScreen()));
+                  Navigator.pushReplacementNamed(context, '/library');
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                       content: Text(
@@ -144,16 +127,17 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
             minimumSize: const Size(double.infinity, 50),
           ),
           child: isLoading
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                  ),
+              ? SizedBox(
+                  height: 20.rs,
+                  width: 20.rs,
+                  child: CircularProgressIndicator.adaptive(),
                 )
-              : const Text(
-                  'Next',
-                  style: TextStyle(color: Colors.white),
+              : Text(
+                  'Continue',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.rt,
+                  ),
                 ),
         ),
       ),
@@ -187,32 +171,53 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
               const SizedBox(
                 height: 20,
               ),
-              TextFormField(
-                controller: emailController,
-                decoration: const InputDecoration(
-                    labelText: 'Email', border: OutlineInputBorder()),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(
-                height: 20,
-              ),
-              CountryCodeTextField(
-                controller: phoneNumberController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(),
+              InkWell(
+                onTap: () async {
+                  final DateTime? picked = await showDatePicker(
+                    context: context,
+                    initialDate: minimumDate,
+                    firstDate: DateTime(1900),
+                    lastDate: minimumDate,
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      selectedDate = picked;
+                    });
+                  }
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        selectedDate == null
+                            ? 'Date of Birth'
+                            : '${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}',
+                        style: TextStyle(
+                          color: selectedDate == null
+                              ? Colors.grey.shade600
+                              : Colors.black,
+                        ),
+                      ),
+                      const Icon(Icons.calendar_today),
+                    ],
                   ),
                 ),
-                initialCountryCode: initialCountryCode,
-                onCountryChanged: (value) {
-                  setState(() {
-                    initialCountryCode = value.code;
-                  });
-                },
               ),
-              const SizedBox(
-                height: 20,
+              SizedBox(
+                height: 64.rh,
+              ),
+              Text("In case we can't email you",
+                  style: TextStyle(fontSize: 12.rt)),
+              Divider(),
+              SizedBox(
+                height: 8.rh,
               ),
               TextFormField(
                 controller: passwordController,

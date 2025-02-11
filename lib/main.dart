@@ -1,17 +1,19 @@
+import 'package:email_otp/email_otp.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:wolly/Screens/library/library.dart';
+import 'package:wolly/Screens/login/otp_verify.dart';
+import 'package:wolly/Screens/profile/profile_screen.dart';
 import 'package:wolly/providers/dashboard_provider.dart';
 import 'package:wolly/providers/genre_provider.dart';
 import 'package:wolly/providers/library_provider.dart';
 import 'package:wolly/providers/profile_provider.dart';
 import 'package:wolly/screens/login/login.dart';
 import 'package:wolly/screens/create_account/account_creation.dart';
-import 'package:wolly/screens/profile/profile_screen.dart';
-import 'package:wolly/screens/wolly_root.dart';
 import 'firebase_options.dart';
+import 'package:flexify/flexify.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +29,13 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  EmailOTP.config(
+    appName: 'Wolly',
+    otpType: OTPType.numeric,
+    emailTheme: EmailTheme.v1,
+  );
+
   runApp(MultiProvider(providers: [
     ChangeNotifierProvider<ProfileProvider>(
         create: (context) => ProfileProvider()),
@@ -44,20 +53,50 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // GenreProvider.fetchAndStoreEpubs();
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Wolly',
-      routes: {
-        "/": (context) => Library() //const Login(),
-        // "/account_creation": (context) => const AccountCreationScreen(),
-        // '/profile_info': (context) => const ProfileScreen(),
-        // "/root": (context) => const MinimalExample(),
-      },
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
+    return Flexify(
+      designWidth: 390,
+      designHeight: 844,
+      app: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Wolly',
+        onGenerateRoute: (settings) {
+          switch (settings.name) {
+            case '/otp_verify':
+              final email = settings.arguments as String;
+              return MaterialPageRoute(
+                builder: (context) => OtpVerify(email: email),
+              );
+            case '/account_creation':
+              final email = settings.arguments as String;
+              return MaterialPageRoute(
+                builder: (context) => AccountCreationScreen(
+                  userEmail: email,
+                ),
+              );
+            case '/':
+              return MaterialPageRoute(
+                builder: (context) => const Login(),
+              );
+            case '/library':
+              return MaterialPageRoute(
+                builder: (context) => Library(),
+              );
+            case '/profile_info':
+              return MaterialPageRoute(
+                builder: (context) => const ProfileScreen(),
+              );
+            default:
+              return MaterialPageRoute(
+                builder: (context) => const Login(),
+              );
+          }
+        },
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          useMaterial3: true,
+        ),
+        initialRoute: "/",
       ),
-      initialRoute: "/",
     );
   }
 }
