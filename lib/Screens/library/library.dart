@@ -41,6 +41,16 @@ class _LibraryState extends State<Library> {
           actions: [
             IconButton(
               onPressed: () {
+                Navigator.pushNamed(context, '/file_download_example');
+              },
+              icon: Icon(
+                Icons.download,
+                size: 20.rs,
+              ),
+              tooltip: 'File Download Example',
+            ),
+            IconButton(
+              onPressed: () {
                 Navigator.pushReplacementNamed(context, '/login');
               },
               icon: Icon(

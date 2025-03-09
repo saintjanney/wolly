@@ -36,7 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_pdfview: ^1.4.0
   permission_handler: ^11.3.1
-  http: ^1.3.0
+  http: ^0.13.6
   path_provider: ^2.1.5
   epub_view: ^3.2.0
   # provider: ^6.1.2  # Removing provider as we're migrating to BLoC
@@ -47,14 +47,15 @@ dependencies:
   firebase_storage: ^12.4.1
   country_code_text_field: ^1.1.2
   persistent_bottom_nav_bar_v2: ^5.3.1
-  # internet_file: ^1.2.0
-  email_otp: ^3.0.2
+  internet_file: ^1.2.0
+  email_otp: ^2.0.1
   pinput: ^5.0.1
   flexify: ^2.1.1
   # Adding BLoC dependencies
   flutter_bloc: ^8.1.4
   equatable: ^2.0.5
   bloc: ^8.1.3
+  path: ^1.8.3
 
 dev_dependencies:
   flutter_test:

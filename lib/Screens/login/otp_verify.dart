@@ -13,7 +13,9 @@ import 'package:wolly/Screens/library/library.dart';
 /// For more examples check out the demo directory
 class OtpVerify extends StatefulWidget {
   final String email;
-  const OtpVerify({Key? key, required this.email}) : super(key: key);
+  final EmailOTP? myAuth; // Add parameter to pass the EmailOTP instance
+  const OtpVerify({Key? key, required this.email, this.myAuth})
+      : super(key: key);
 
   @override
   State<OtpVerify> createState() => _OtpVerifyState();
@@ -27,6 +29,7 @@ class _OtpVerifyState extends State<OtpVerify> {
   late Timer _timer;
   int _remainingSeconds = 60;
   bool _canResendOTP = false;
+  late EmailOTP myAuth; // Store the EmailOTP instance
 
   @override
   void initState() {
@@ -39,6 +42,17 @@ class _OtpVerifyState extends State<OtpVerify> {
     formKey = GlobalKey<FormState>();
     pinController = TextEditingController();
     focusNode = FocusNode();
+
+    // Use the passed EmailOTP instance or create a new one
+    myAuth = widget.myAuth ?? EmailOTP();
+    if (widget.myAuth == null) {
+      // If no instance was passed, configure a new one
+      myAuth.setConfig(
+          appName: "Wolly",
+          userEmail: widget.email,
+          otpLength: 6,
+          otpType: OTPType.digitsOnly);
+    }
 
     /// In case you need an SMS autofill feature
     // smsRetriever = SmsRetrieverImpl(
@@ -199,17 +213,20 @@ class _OtpVerifyState extends State<OtpVerify> {
               ),
               onPressed: () async {
                 focusNode.unfocus();
-                bool res = EmailOTP.verifyOTP(otp: pinController.text);
+                // Use the same instance for verification
+                bool res = await myAuth.verifyOTP(otp: pinController.text);
                 if (res) {
                   final userExists = await checkUserExists(widget.email);
                   if (userExists) {
                     Navigator.pushReplacementNamed(context, '/library');
                   } else {
-                    Navigator.pushReplacementNamed(
-                      context,
-                      '/account_creation',
-                      arguments: widget.email,
-                    );
+                    if (mounted) {
+                      Navigator.pushReplacementNamed(
+                        context,
+                        '/account_creation',
+                        arguments: widget.email,
+                      );
+                    }
                   }
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -225,19 +242,22 @@ class _OtpVerifyState extends State<OtpVerify> {
           ),
           TextButton(
             onPressed: _canResendOTP
-                ? () {
-                    EmailOTP.sendOTP(
-                      email: widget
-                          .email, // Make sure to pass email from login screen
-                    ).then((value) {
-                      if (value == "") {
-                        startCountdown(); // Restart countdown after successful OTP send
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(value.toString())),
-                        );
-                      }
-                    });
+                ? () async {
+                    // Create a new EmailOTP instance for resending
+                    myAuth = EmailOTP();
+                    myAuth.setConfig(
+                        appName: "Wolly",
+                        userEmail: widget.email,
+                        otpLength: 6,
+                        otpType: OTPType.digitsOnly);
+                    bool result = await myAuth.sendOTP();
+                    if (result) {
+                      startCountdown(); // Restart countdown after successful OTP send
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Failed to send OTP")),
+                      );
+                    }
                   }
                 : null,
             child: Text(

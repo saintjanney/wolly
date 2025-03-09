@@ -7,6 +7,7 @@ import 'package:wolly/core/theme/app_theme.dart';
 import 'package:wolly/features/authentication/data/auth_repository.dart';
 import 'package:wolly/features/authentication/presentation/bloc/auth_bloc.dart';
 import 'package:wolly/features/authentication/presentation/screens/account_creation_screen.dart';
+import 'package:wolly/features/library/presentation/screens/file_download_example_screen.dart';
 // import 'package:wolly/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 // import 'package:wolly/features/library/presentation/bloc/library_bloc.dart';
 // import 'package:wolly/features/profile/presentation/bloc/profile_bloc.dart';
@@ -32,10 +33,13 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  EmailOTP.config(
+  // Initialize EmailOTP (using version 2.0.1 API)
+  final emailOTP = EmailOTP();
+  emailOTP.setConfig(
     appName: 'Wolly',
-    otpType: OTPType.numeric,
-    emailTheme: EmailTheme.v1,
+    userEmail: '',
+    otpLength: 6,
+    otpType: OTPType.digitsOnly,
   );
 
   // Create repositories
@@ -78,9 +82,11 @@ class MyApp extends StatelessWidget {
         onGenerateRoute: (settings) {
           switch (settings.name) {
             case '/otp_verify':
-              final email = settings.arguments as String;
+              final args = settings.arguments as Map<String, dynamic>;
+              final email = args['email'] as String;
+              final myAuth = args['myAuth'] as EmailOTP;
               return MaterialPageRoute(
-                builder: (context) => OtpVerify(email: email),
+                builder: (context) => OtpVerify(email: email, myAuth: myAuth),
               );
             case '/account_creation':
               final email = settings.arguments as String;
@@ -100,6 +106,10 @@ class MyApp extends StatelessWidget {
             case '/profile_info':
               return MaterialPageRoute(
                 builder: (context) => const ProfileScreen(),
+              );
+            case '/file_download_example':
+              return MaterialPageRoute(
+                builder: (context) => const FileDownloadExampleScreen(),
               );
             default:
               return MaterialPageRoute(

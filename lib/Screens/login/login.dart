@@ -70,14 +70,26 @@ class _LoginState extends State<Login> {
                   setState(() {
                     isLoading = true;
                   });
-                  bool res =
-                      await EmailOTP.sendOTP(email: emailController.text);
+                  EmailOTP myAuth = EmailOTP();
+                  myAuth.setConfig(
+                    appName: "Wolly",
+                    userEmail: emailController.text,
+                    otpLength: 6,
+                    otpType: OTPType.digitsOnly
+                  );
+                  bool res = await myAuth.sendOTP();
                   setState(() {
                     isLoading = false;
                   });
                   if (res) {
-                    Navigator.pushReplacementNamed(context, '/otp_verify',
-                        arguments: emailController.text);
+                    Navigator.pushReplacementNamed(
+                      context, 
+                      '/otp_verify',
+                      arguments: {
+                        'email': emailController.text,
+                        'myAuth': myAuth,
+                      }
+                    );
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text("OTP failed sent")));
