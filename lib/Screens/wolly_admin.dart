@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:wolly/models/book.dart';
+import 'package:wolly/read_book.dart';
 
 class WollyAdmin extends StatefulWidget {
   @override
@@ -103,6 +105,20 @@ class _WollyAdminState extends State<WollyAdmin> {
     }
   }
 
+  String _getFileTypeFromUrl(String url) {
+    print(url);
+    if (url.contains('.pdf')) {
+      print('pdf');
+      return 'pdf';
+    } else if (url.contains('.epub')) {
+      print('epub');
+      return 'epub';
+    } else {
+      print('uknown');
+      return 'unknown';
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -175,13 +191,17 @@ class _WollyAdminState extends State<WollyAdmin> {
                       onPressed: () => _deleteEpub(epub.id, epubName),
                     ),
                     onTap: () {
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute<void>(
-                      //     builder: (BuildContext context) =>
-                      //         EPubView(link: epubUrl),
-                      //   ),
-                      // );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                            builder: (BuildContext context) => ReadEpub(
+                                book: Book(
+                                    title: epub['title'],
+                                    genre: epub['genre'],
+                                    downloadUrl: epub['url'],
+                                    fileType:
+                                        _getFileTypeFromUrl(epub['url'])))),
+                      );
                     },
                   );
                 },
