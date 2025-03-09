@@ -1,8 +1,10 @@
 import 'package:email_otp/email_otp.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:wolly/Screens/wolly_admin.dart';
 import 'package:wolly/core/theme/app_theme.dart';
 import 'package:wolly/features/authentication/data/auth_repository.dart';
 import 'package:wolly/features/authentication/presentation/bloc/auth_bloc.dart';
@@ -96,9 +98,15 @@ class MyApp extends StatelessWidget {
                 ),
               );
             case '/':
-              return MaterialPageRoute(
-                builder: (context) => const Login(),
-              );
+              if (kIsWeb) {
+                return MaterialPageRoute(
+                  builder: (context) => WollyAdmin(),
+                );
+              } else {
+                return MaterialPageRoute(
+                  builder: (context) => const Login(),
+                );
+              }
             case '/library':
               return MaterialPageRoute(
                 builder: (context) => Library(),
