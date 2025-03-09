@@ -2,16 +2,18 @@ import 'package:email_otp/email_otp.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:wolly/core/theme/app_theme.dart';
+import 'package:wolly/features/authentication/data/auth_repository.dart';
+import 'package:wolly/features/authentication/presentation/bloc/auth_bloc.dart';
+import 'package:wolly/features/authentication/presentation/screens/account_creation_screen.dart';
+// import 'package:wolly/features/dashboard/presentation/bloc/dashboard_bloc.dart';
+// import 'package:wolly/features/library/presentation/bloc/library_bloc.dart';
+// import 'package:wolly/features/profile/presentation/bloc/profile_bloc.dart';
 import 'package:wolly/Screens/library/library.dart';
 import 'package:wolly/Screens/login/otp_verify.dart';
 import 'package:wolly/Screens/profile/profile_screen.dart';
-import 'package:wolly/providers/dashboard_provider.dart';
-import 'package:wolly/providers/genre_provider.dart';
-import 'package:wolly/providers/library_provider.dart';
-import 'package:wolly/providers/profile_provider.dart';
 import 'package:wolly/screens/login/login.dart';
-import 'package:wolly/screens/create_account/account_creation.dart';
 import 'firebase_options.dart';
 import 'package:flexify/flexify.dart';
 
@@ -36,14 +38,29 @@ Future<void> main() async {
     emailTheme: EmailTheme.v1,
   );
 
-  runApp(MultiProvider(providers: [
-    ChangeNotifierProvider<ProfileProvider>(
-        create: (context) => ProfileProvider()),
-    ChangeNotifierProvider<LibraryProvider>(
-        create: (context) => LibraryProvider()),
-    ChangeNotifierProvider(create: (cotenxt) => DashboardProvider()),
-    ChangeNotifierProvider(create: (cotenxt) => GenreProvider()),
-  ], child: const MyApp()));
+  // Create repositories
+  final authRepository = AuthRepository();
+
+  runApp(
+    MultiBlocProvider(
+      providers: [
+        BlocProvider<AuthBloc>(
+          create: (context) => AuthBloc(authRepository: authRepository),
+        ),
+        // Add other BLoC providers here as they are implemented
+        // BlocProvider<ProfileBloc>(
+        //   create: (context) => ProfileBloc(),
+        // ),
+        // BlocProvider<LibraryBloc>(
+        //   create: (context) => LibraryBloc(),
+        // ),
+        // BlocProvider<DashboardBloc>(
+        //   create: (context) => DashboardBloc(),
+        // ),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -52,7 +69,6 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    // GenreProvider.fetchAndStoreEpubs();
     return Flexify(
       designWidth: 390,
       designHeight: 844,
@@ -91,10 +107,7 @@ class MyApp extends StatelessWidget {
               );
           }
         },
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          useMaterial3: true,
-        ),
+        theme: AppTheme.lightTheme,
         initialRoute: "/",
       ),
     );
