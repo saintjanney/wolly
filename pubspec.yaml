@@ -48,7 +48,6 @@ dependencies:
   country_code_text_field: ^1.1.2
   persistent_bottom_nav_bar_v2: ^5.3.1
   internet_file: ^1.2.0
-  email_otp: ^2.0.1
   pinput: ^5.0.1
   flexify: ^2.1.1
   # Adding BLoC dependencies

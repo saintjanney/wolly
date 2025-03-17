@@ -31,7 +31,8 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
-pubspec.lock  # Dependency lock file that shouldn't be committed
+/pubspec.lock
+**/pubspec.lock
 
 # Symbolication related
 app.*.symbols
@@ -81,6 +82,7 @@ app.*.map.json
 **/ios/Flutter/flutter_export_environment.sh
 **/ios/ServiceDefinitions.json
 **/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/Podfile.lock
 
 # macOS
 **/macos/Flutter/GeneratedPluginRegistrant.swift

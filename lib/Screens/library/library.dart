@@ -30,7 +30,7 @@ class _LibraryState extends State<Library> {
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          // backgroundColor: Colors.white,
           title: Text(
             'Library',
             style: TextStyle(

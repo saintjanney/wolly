@@ -1,4 +1,4 @@
-import 'package:email_otp/email_otp.dart';
+
 import 'package:flexify/flexify.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -6,16 +6,19 @@ import 'package:flutter/services.dart';
 import 'package:pinput/pinput.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import 'package:wolly/Screens/library/library.dart';
 
 /// This is the basic usage of Pinput
 /// For more examples check out the demo directory
 class OtpVerify extends StatefulWidget {
-  final String email;
-  final EmailOTP? myAuth; // Add parameter to pass the EmailOTP instance
-  const OtpVerify({Key? key, required this.email, this.myAuth})
-      : super(key: key);
+  final String email; // Add parameter to pass the EmailOTP instance
+  const OtpVerify({
+    Key? key,
+    required this.email,
+  }) : super(key: key);
 
   @override
   State<OtpVerify> createState() => _OtpVerifyState();
@@ -29,7 +32,7 @@ class _OtpVerifyState extends State<OtpVerify> {
   late Timer _timer;
   int _remainingSeconds = 60;
   bool _canResendOTP = false;
-  late EmailOTP myAuth; // Store the EmailOTP instance
+ 
 
   @override
   void initState() {
@@ -44,15 +47,6 @@ class _OtpVerifyState extends State<OtpVerify> {
     focusNode = FocusNode();
 
     // Use the passed EmailOTP instance or create a new one
-    myAuth = widget.myAuth ?? EmailOTP();
-    if (widget.myAuth == null) {
-      // If no instance was passed, configure a new one
-      myAuth.setConfig(
-          appName: "Wolly",
-          userEmail: widget.email,
-          otpLength: 6,
-          otpType: OTPType.digitsOnly);
-    }
 
     /// In case you need an SMS autofill feature
     // smsRetriever = SmsRetrieverImpl(
@@ -213,24 +207,41 @@ class _OtpVerifyState extends State<OtpVerify> {
               ),
               onPressed: () async {
                 focusNode.unfocus();
-                // Use the same instance for verification
-                bool res = await myAuth.verifyOTP(otp: pinController.text);
-                if (res) {
-                  final userExists = await checkUserExists(widget.email);
-                  if (userExists) {
-                    Navigator.pushReplacementNamed(context, '/library');
-                  } else {
-                    if (mounted) {
-                      Navigator.pushReplacementNamed(
-                        context,
-                        '/account_creation',
-                        arguments: widget.email,
-                      );
+                try {
+                  final response = await http.post(
+                    Uri.parse('https://verifyotp-dg5lwqjwha-uc.a.run.app'),
+                    headers: {'Content-Type': 'application/json'},
+                    body: json.encode({
+                      'email': widget.email,
+                      'tenantId': '9bJeg81yOoYFSuEhexuC',
+                      'otp': pinController.text
+                    }),
+                  );
+
+                  if (response.statusCode == 200 &&
+                      jsonDecode(response.body)['message'] ==
+                          'OTP verified successfully') {
+                    print(response.body);
+                    final userExists = await checkUserExists(widget.email);
+                    if (userExists) {
+                      Navigator.pushReplacementNamed(context, '/library');
+                    } else {
+                      if (mounted) {
+                        Navigator.pushReplacementNamed(
+                          context,
+                          '/account_creation',
+                          arguments: widget.email,
+                        );
+                      }
                     }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Invalid OTP: ${response.body}")),
+                    );
                   }
-                } else {
+                } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Invalid OTP")),
+                    SnackBar(content: Text("Error verifying OTP: $e")),
                   );
                 }
               },
@@ -243,19 +254,29 @@ class _OtpVerifyState extends State<OtpVerify> {
           TextButton(
             onPressed: _canResendOTP
                 ? () async {
-                    // Create a new EmailOTP instance for resending
-                    myAuth = EmailOTP();
-                    myAuth.setConfig(
-                        appName: "Wolly",
-                        userEmail: widget.email,
-                        otpLength: 6,
-                        otpType: OTPType.digitsOnly);
-                    bool result = await myAuth.sendOTP();
-                    if (result) {
-                      startCountdown(); // Restart countdown after successful OTP send
-                    } else {
+                    try {
+                      final response = await http.post(
+                        Uri.parse('https://requestotp-dg5lwqjwha-uc.a.run.app'),
+                        headers: {'Content-Type': 'application/json'},
+                        body: json.encode({
+                          'email': widget.email,
+                          'tenantId': '9bJeg81yOoYFSuEhexuC',
+                          'otpLength': 6
+                        }),
+                      );
+
+                      if (response.statusCode == 200) {
+                        startCountdown(); // Restart countdown after successful OTP send
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content:
+                                  Text("Failed to send OTP: ${response.body}")),
+                        );
+                      }
+                    } catch (e) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Failed to send OTP")),
+                        SnackBar(content: Text("Error sending OTP: $e")),
                       );
                     }
                   }

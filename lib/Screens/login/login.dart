@@ -1,7 +1,9 @@
-import 'package:email_otp/email_otp.dart';
 import 'package:flexify/flexify.dart';
 import 'package:flutter/material.dart';
 import 'package:wolly/Screens/login/otp_verify.dart';
+import 'package:http/http.dart' as http;
+import 'dart:html' as html;
+import 'dart:convert';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -12,6 +14,29 @@ class Login extends StatefulWidget {
 
 class _LoginState extends State<Login> {
   bool isLoading = false;
+
+  void requestOTP() {
+    final url = 'https://requestotp-dg5lwqjwha-uc.a.run.app';
+
+    final request = html.HttpRequest();
+    request.open('POST', url, async: true);
+    request.setRequestHeader('Content-Type', 'application/json');
+
+    request.onLoadEnd.listen((_) {
+      if (request.status == 200) {
+        print('Success: ${request.responseText}');
+      } else {
+        print('Error: ${request.status} - ${request.responseText}');
+      }
+    });
+
+    request.send(json.encode({
+      'email': 'allenjanney@gmail.com',
+      'tenantId': '9bJeg81yOoYFSuEhexuC',
+      'otpLength': 6
+    }));
+  }
+
   @override
   Widget build(BuildContext context) {
     TextEditingController emailController = TextEditingController();
@@ -70,29 +95,37 @@ class _LoginState extends State<Login> {
                   setState(() {
                     isLoading = true;
                   });
-                  EmailOTP myAuth = EmailOTP();
-                  myAuth.setConfig(
-                    appName: "Wolly",
-                    userEmail: emailController.text,
-                    otpLength: 6,
-                    otpType: OTPType.digitsOnly
-                  );
-                  bool res = await myAuth.sendOTP();
-                  setState(() {
-                    isLoading = false;
-                  });
-                  if (res) {
-                    Navigator.pushReplacementNamed(
-                      context, 
-                      '/otp_verify',
-                      arguments: {
+
+                  try {
+                    final response = await http.post(
+                      Uri.parse('https://requestotp-dg5lwqjwha-uc.a.run.app'),
+                      headers: {'Content-Type': 'application/json'},
+                      body: json.encode({
                         'email': emailController.text,
-                        'myAuth': myAuth,
-                      }
+                        'tenantId': '9bJeg81yOoYFSuEhexuC',
+                        'otpLength': 6
+                      }),
                     );
-                  } else {
+                    setState(() {
+                      isLoading = false;
+                    });
+                    print(response.statusCode);
+                    if (response.statusCode == 200) {
+                      Navigator.pushReplacementNamed(context, '/otp_verify',
+                          arguments: {
+                            'email': emailController.text,
+                          });
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content:
+                              Text("Failed to send OTP: ${response.body}")));
+                    }
+                  } catch (e) {
+                    setState(() {
+                      isLoading = false;
+                    });
                     ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("OTP failed sent")));
+                        SnackBar(content: Text("Error sending OTP: $e")));
                   }
                 },
                 child: isLoading

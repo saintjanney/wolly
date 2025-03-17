@@ -1,4 +1,4 @@
-import 'package:email_otp/email_otp.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -36,13 +36,6 @@ Future<void> main() async {
   );
 
   // Initialize EmailOTP (using version 2.0.1 API)
-  final emailOTP = EmailOTP();
-  emailOTP.setConfig(
-    appName: 'Wolly',
-    userEmail: '',
-    otpLength: 6,
-    otpType: OTPType.digitsOnly,
-  );
 
   // Create repositories
   final authRepository = AuthRepository();
@@ -86,9 +79,11 @@ class MyApp extends StatelessWidget {
             case '/otp_verify':
               final args = settings.arguments as Map<String, dynamic>;
               final email = args['email'] as String;
-              final myAuth = args['myAuth'] as EmailOTP;
+
               return MaterialPageRoute(
-                builder: (context) => OtpVerify(email: email, myAuth: myAuth),
+                builder: (context) => OtpVerify(
+                  email: email,
+                ),
               );
             case '/account_creation':
               final email = settings.arguments as String;
@@ -98,15 +93,10 @@ class MyApp extends StatelessWidget {
                 ),
               );
             case '/':
-              if (kIsWeb) {
-                return MaterialPageRoute(
-                  builder: (context) => WollyAdmin(),
-                );
-              } else {
-                return MaterialPageRoute(
-                  builder: (context) => const Login(),
-                );
-              }
+              return MaterialPageRoute(
+                builder: (context) => const Login(),
+              );
+
             case '/library':
               return MaterialPageRoute(
                 builder: (context) => Library(),
