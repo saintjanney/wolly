@@ -1,4 +1,3 @@
-
 import 'package:flexify/flexify.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -32,7 +31,6 @@ class _OtpVerifyState extends State<OtpVerify> {
   late Timer _timer;
   int _remainingSeconds = 60;
   bool _canResendOTP = false;
- 
 
   @override
   void initState() {
@@ -210,7 +208,11 @@ class _OtpVerifyState extends State<OtpVerify> {
                 try {
                   final response = await http.post(
                     Uri.parse('https://verifyotp-dg5lwqjwha-uc.a.run.app'),
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization':
+                          'Bearer 221fb1b6-2ea8-4592-b399-bfaeb89417a9'
+                    },
                     body: json.encode({
                       'email': widget.email,
                       'tenantId': '9bJeg81yOoYFSuEhexuC',

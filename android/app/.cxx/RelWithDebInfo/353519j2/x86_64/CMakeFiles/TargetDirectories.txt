@@ -1,0 +1,2 @@
+/Users/allenjanney/Dev/Lumin/wolly/android/app/.cxx/RelWithDebInfo/353519j2/x86_64/CMakeFiles/edit_cache.dir
+/Users/allenjanney/Dev/Lumin/wolly/android/app/.cxx/RelWithDebInfo/353519j2/x86_64/CMakeFiles/rebuild_cache.dir
