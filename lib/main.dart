@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
+import 'package:wolly/Providers/genre_provider.dart';
 import 'package:wolly/Screens/wolly_admin.dart';
 import 'package:wolly/core/theme/app_theme.dart';
 import 'package:wolly/features/authentication/data/auth_repository.dart';
@@ -13,7 +14,10 @@ import 'package:wolly/features/dashboard/data/dashboard_repository.dart';
 import 'package:wolly/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:wolly/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:wolly/features/library/presentation/screens/file_download_example_screen.dart';
+import 'package:wolly/features/library/presentation/screens/genre_books.dart';
+import 'package:wolly/features/library/presentation/screens/genre_page.dart';
 import 'package:wolly/features/platform/presentation/screens/platform_screen.dart';
+import 'package:wolly/models/genre.dart';
 import 'package:wolly/providers/mock_profile_provider.dart';
 import 'package:wolly/Screens/library/library.dart';
 import 'package:wolly/Screens/login/otp_verify.dart';
@@ -116,6 +120,15 @@ class MyApp extends StatelessWidget {
             case '/file_download_example':
               return MaterialPageRoute(
                 builder: (context) => const FileDownloadExampleScreen(),
+              );
+            case '/genres':
+              return MaterialPageRoute(
+                builder: (context) => const GenrePage(),
+              );
+            case '/genre_books':
+              final genre = settings.arguments as Genre;
+              return MaterialPageRoute(
+                builder: (context) => GenreBooks(genre: genre),
               );
             default:
               return MaterialPageRoute(

@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:wolly/providers/auth_provider.dart';
 import 'package:wolly/providers/genre_provider.dart';
 
-
 class ContentPreferencesScreen extends StatefulWidget {
   const ContentPreferencesScreen({super.key});
 
@@ -26,7 +25,7 @@ class _ContentPreferencesScreenState extends State<ContentPreferencesScreen> {
   Widget build(BuildContext context) {
     return Consumer<GenreProvider>(builder: (context, genreProvider, _) {
       if (genreProvider.genres.isEmpty) {
-        genreProvider.fetchGenres();
+        genreProvider.fetchAllGenres();
       }
       return Scaffold(
         backgroundColor: Colors.white,
@@ -108,14 +107,16 @@ class _ContentPreferencesScreenState extends State<ContentPreferencesScreen> {
                   itemCount: genreProvider.genres.length,
                   itemBuilder: (context, index) {
                     return CheckboxListTile(
-                      title: Text(genreProvider.genres[index]),
-                      value: preferences.contains(genreProvider.genres[index]),
+                      title: Text(genreProvider.genres[index].name),
+                      value: preferences
+                          .contains(genreProvider.genres[index].name),
                       onChanged: (bool? value) {
                         setState(() {
                           if (value == true) {
-                            preferences.add(genreProvider.genres[index]);
+                            preferences.add(genreProvider.genres[index].name);
                           } else {
-                            preferences.remove(genreProvider.genres[index]);
+                            preferences
+                                .remove(genreProvider.genres[index].name);
                           }
                         });
                       },

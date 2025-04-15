@@ -1,12 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:wolly/models/genre.dart';
 
 class GenreProvider with ChangeNotifier {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  List<String> _genres = [];
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  List<Genre> _genres = [];
+  bool _isLoading = false;
+  String _error = '';
 
-  List<String> get genres => _genres;
+  List<Genre> get genres => _genres;
+  bool get isLoading => _isLoading;
+  String get error => _error;
 
   // static Future<void> fetchAndStoreEpubs() async {
   //   try {
@@ -27,29 +32,67 @@ class GenreProvider with ChangeNotifier {
   //   }
   // }
 
-  Future<void> fetchGenres() async {
+  Future<List<Genre>> fetchAllGenres() async {
+    _isLoading = true;
+    _error = '';
+    notifyListeners();
+
     try {
-      final QuerySnapshot<Map<String, dynamic>> response =
+      QuerySnapshot<Map<String, dynamic>> querySnapshot =
           await _firestore.collection('genres').get();
-      if (response.docs.isNotEmpty) {
-        _genres = response.docs.map((e) {
-          String genre = e.id;
-          return genre[0].toUpperCase() + genre.substring(1);
-        }).toList();
-      }
+
+      _genres = querySnapshot.docs.map((doc) {
+        return Genre.fromJson(doc.data(), doc.id);
+      }).toList();
+
+      _isLoading = false;
       notifyListeners();
-    } catch (error) {
-      print('Error fetching genres: $error');
+      return _genres;
+    } catch (e) {
+      _isLoading = false;
+      _error = e.toString();
+      notifyListeners();
+      print('Error fetching genres: $e');
+      return [];
     }
   }
 
+  // Get genre count for each book
+  Future<int> getBookCountByGenre(String genreId) async {
+    try {
+      QuerySnapshot<Map<String, dynamic>> querySnapshot = await _firestore
+          .collection('epubs')
+          .where('genre', isEqualTo: genreId)
+          .where('isPublished', isEqualTo: true)
+          .get();
+
+      return querySnapshot.docs.length;
+    } catch (e) {
+      print('Error getting book count for genre $genreId: $e');
+      return 0;
+    }
+  }
+
+  // Update book counts for all genres
+  Future<void> updateGenreBookCounts() async {
+    for (var genre in _genres) {
+      int count = await getBookCountByGenre(genre.id);
+      if (count > 0) {
+        await _firestore.collection('genres').doc(genre.id).update({
+          'bookCount': count,
+        });
+      }
+    }
+    await fetchAllGenres(); // Refresh genres with updated counts
+  }
+
   void addGenre(String genre) {
-    _genres.add(genre);
+    _genres.add(Genre(id: genre, name: genre));
     notifyListeners();
   }
 
   void removeGenre(String genre) {
-    _genres.remove(genre);
+    _genres.removeWhere((g) => g.id == genre);
     notifyListeners();
   }
 }
