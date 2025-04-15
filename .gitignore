@@ -117,3 +117,6 @@ coverage/
 *.g.dart
 *.freezed.dart
 *.mocks.dart
+
+# Binary files
+**/android/app/.cxx/RelWithDebInfo/**/configure_fingerprint.bin
