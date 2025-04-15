@@ -1,18 +1,20 @@
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:provider/provider.dart';
 import 'package:wolly/Screens/wolly_admin.dart';
 import 'package:wolly/core/theme/app_theme.dart';
 import 'package:wolly/features/authentication/data/auth_repository.dart';
 import 'package:wolly/features/authentication/presentation/bloc/auth_bloc.dart';
 import 'package:wolly/features/authentication/presentation/screens/account_creation_screen.dart';
+import 'package:wolly/features/dashboard/data/dashboard_repository.dart';
+import 'package:wolly/features/dashboard/presentation/bloc/dashboard_bloc.dart';
+import 'package:wolly/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:wolly/features/library/presentation/screens/file_download_example_screen.dart';
-// import 'package:wolly/features/dashboard/presentation/bloc/dashboard_bloc.dart';
-// import 'package:wolly/features/library/presentation/bloc/library_bloc.dart';
-// import 'package:wolly/features/profile/presentation/bloc/profile_bloc.dart';
+import 'package:wolly/features/platform/presentation/screens/platform_screen.dart';
+import 'package:wolly/providers/mock_profile_provider.dart';
 import 'package:wolly/Screens/library/library.dart';
 import 'package:wolly/Screens/login/otp_verify.dart';
 import 'package:wolly/Screens/profile/profile_screen.dart';
@@ -39,23 +41,22 @@ Future<void> main() async {
 
   // Create repositories
   final authRepository = AuthRepository();
+  final dashboardRepository = DashboardRepository();
 
   runApp(
-    MultiBlocProvider(
+    MultiProvider(
       providers: [
+        // BLoC providers
         BlocProvider<AuthBloc>(
           create: (context) => AuthBloc(authRepository: authRepository),
         ),
-        // Add other BLoC providers here as they are implemented
-        // BlocProvider<ProfileBloc>(
-        //   create: (context) => ProfileBloc(),
-        // ),
-        // BlocProvider<LibraryBloc>(
-        //   create: (context) => LibraryBloc(),
-        // ),
-        // BlocProvider<DashboardBloc>(
-        //   create: (context) => DashboardBloc(),
-        // ),
+        BlocProvider<DashboardBloc>(
+          create: (context) => DashboardBloc(dashboardRepository: dashboardRepository),
+        ),
+        // ChangeNotifier providers
+        ChangeNotifierProvider<MockProfileProvider>(
+          create: (context) => MockProfileProvider(),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -96,7 +97,14 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(
                 builder: (context) => const Login(),
               );
-
+            case '/platform':
+              return MaterialPageRoute(
+                builder: (context) => const PlatformScreen(),
+              );
+            case '/dashboard':
+              return MaterialPageRoute(
+                builder: (context) => const DashboardScreen(),
+              );
             case '/library':
               return MaterialPageRoute(
                 builder: (context) => Library(),

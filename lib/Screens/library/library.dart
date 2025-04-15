@@ -1,6 +1,7 @@
 import 'package:flexify/flexify.dart';
 import 'package:flutter/material.dart';
 import 'package:wolly/Providers/library_provider.dart';
+import 'package:wolly/features/platform/presentation/widgets/platform_app_bar.dart';
 import 'package:wolly/models/book.dart';
 import 'package:wolly/read_book.dart';
 import 'package:wolly/read_pdf.dart';
@@ -29,15 +30,8 @@ class _LibraryState extends State<Library> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          // backgroundColor: Colors.white,
-          title: Text(
-            'Library',
-            style: TextStyle(
-              fontSize: 16.rt,
-              fontWeight: FontWeight.normal,
-            ),
-          ),
+        appBar: PlatformAppBar(
+          title: 'Library',
           actions: [
             IconButton(
               onPressed: () {
@@ -48,15 +42,6 @@ class _LibraryState extends State<Library> {
                 size: 20.rs,
               ),
               tooltip: 'File Download Example',
-            ),
-            IconButton(
-              onPressed: () {
-                Navigator.pushReplacementNamed(context, '/login');
-              },
-              icon: Icon(
-                Icons.logout_outlined,
-                size: 20.rs,
-              ),
             ),
           ],
         ),

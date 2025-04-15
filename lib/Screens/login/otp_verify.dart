@@ -226,7 +226,7 @@ class _OtpVerifyState extends State<OtpVerify> {
                     print(response.body);
                     final userExists = await checkUserExists(widget.email);
                     if (userExists) {
-                      Navigator.pushReplacementNamed(context, '/library');
+                      Navigator.pushReplacementNamed(context, '/platform');
                     } else {
                       if (mounted) {
                         Navigator.pushReplacementNamed(

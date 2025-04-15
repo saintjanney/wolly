@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wolly/providers/auth_provider.dart';
-import 'package:wolly/providers/profile_provider.dart';
+import 'package:wolly/providers/mock_auth_provider.dart';
+import 'package:wolly/providers/mock_profile_provider.dart';
+import 'package:wolly/features/platform/presentation/widgets/platform_app_bar.dart';
 import 'package:wolly/screens/login/login.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -12,7 +13,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final AuthProvider _authProvider = AuthProvider();
+  final MockAuthProvider _authProvider = MockAuthProvider();
   bool isLoading = false;
 
   @override
@@ -20,17 +21,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
   }
 
+  void _handleLogout() async {
+    setState(() {
+      isLoading = true;
+    });
+    
+    try {
+      await _authProvider.signOut();
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (BuildContext context) => const Login(),
+          ),
+          (_) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error during logout: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        title: const Text('Profile'),
+      appBar: const PlatformAppBar(
+        title: 'Profile',
       ),
       backgroundColor: Colors.white,
-      body: Consumer<ProfileProvider>(builder: (context, profileProvider, _) {
+      body: Consumer<MockProfileProvider>(builder: (context, profileProvider, _) {
         if (profileProvider.user == null) {
-          profileProvider.fetchUserData("MxsFoheaU1WXeudFEQVJvUHbY822");
+          // This should not happen with our MockProfileProvider as it loads data in the constructor
           return const Center(
             child: CircularProgressIndicator(),
           );
@@ -56,77 +86,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 Center(
                   child: Text(
-                    profileProvider.user!.firstName ?? "",
-                  ),
-                ),
-                const SizedBox(
-                  height: 8,
-                ),
-                const Center(child: Text("Creater | Reader")),
-                const SizedBox(
-                  height: 16,
-                ),
-                Center(
-                  child: SizedBox(
-                    width: MediaQuery.sizeOf(context).width * 0.6,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          isLoading = true;
-                        });
-                        _authProvider.signOut().whenComplete(() {
-                          Navigator.of(context, rootNavigator: true)
-                              .pushAndRemoveUntil(
-                            MaterialPageRoute(
-                              builder: (BuildContext context) {
-                                return const Login();
-                              },
-                            ),
-                            (_) => false,
-                          );
-                        });
-                      },
-                      child: isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              'Logout',
-                              style: TextStyle(color: Colors.white),
-                            ),
+                    "${profileProvider.user!.firstName} ${profileProvider.user!.lastName}",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
                 const SizedBox(
-                  height: 40,
-                ),
-                const Text("Content Preferences",
-                    style: TextStyle(fontSize: 20)),
-                const SizedBox(
                   height: 8,
                 ),
-                for (String s in profileProvider.user!.contentPreference)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Container(
-                        decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            color: Colors.grey[200]),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 4),
-                        child: Text(s)),
+                Center(
+                  child: Text(
+                    profileProvider.user!.persona ?? "Reader",
+                    style: const TextStyle(
+                      color: Colors.grey,
+                    ),
                   ),
+                ),
+                const SizedBox(
+                  height: 32,
+                ),
+                // Account Settings Section
+                const Text(
+                  "Account Settings",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(Icons.edit),
+                  title: const Text("Edit Profile"),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    // Navigate to edit profile page
+                  },
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.notifications_outlined),
+                  title: const Text("Notification Settings"),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    // Navigate to notifications settings
+                  },
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.logout, color: Colors.red),
+                  title: const Text(
+                    "Logout",
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: _handleLogout,
+                ),
+                const SizedBox(height: 32),
+                // Content Preferences Section
+                const Text(
+                  "Content Preferences",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (var preference in profileProvider.user!.contentPreference)
+                      Chip(
+                        label: Text(preference.toString()),
+                        backgroundColor: Colors.blue.withOpacity(0.1),
+                      ),
+                  ],
+                ),
               ],
             ),
           );

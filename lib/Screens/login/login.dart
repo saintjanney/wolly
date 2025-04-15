@@ -56,6 +56,7 @@ class _LoginState extends State<Login> {
             SizedBox(height: MediaQuery.of(context).size.height * 0.2),
             TextFormField(
               controller: emailController,
+              keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(
                 border: OutlineInputBorder(),
                 labelText: 'Email',

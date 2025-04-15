@@ -55,7 +55,7 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state.status == AuthStatus.authenticated) {
-          Navigator.pushReplacementNamed(context, '/library');
+          Navigator.pushReplacementNamed(context, '/platform');
         }
         if (state.errorMessage != null) {
           ScaffoldMessenger.of(context).showSnackBar(
