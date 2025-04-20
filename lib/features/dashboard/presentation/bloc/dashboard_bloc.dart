@@ -11,6 +11,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       super(const DashboardState()) {
     on<LoadDashboard>(_onLoadDashboard);
     on<RefreshDashboard>(_onRefreshDashboard);
+    on<UpdateReadingProgress>(_onUpdateReadingProgress);
   }
 
   Future<void> _onLoadDashboard(
@@ -54,6 +55,30 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         status: DashboardStatus.error,
         errorMessage: 'Failed to refresh dashboard: $e',
       ));
+    }
+  }
+  
+  Future<void> _onUpdateReadingProgress(
+    UpdateReadingProgress event, 
+    Emitter<DashboardState> emit
+  ) async {
+    try {
+      final success = await _dashboardRepository.updateReadingProgress(
+        event.bookId, 
+        event.pagesRead, 
+        event.totalPages
+      );
+      
+      if (success) {
+        // Refresh the reading progress after successful update
+        final readingProgress = await _dashboardRepository.getUserReadingProgress();
+        
+        emit(state.copyWith(
+          readingProgress: readingProgress,
+        ));
+      }
+    } catch (e) {
+      print('Error updating reading progress: $e');
     }
   }
 } 

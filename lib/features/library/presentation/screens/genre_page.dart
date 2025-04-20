@@ -1,9 +1,11 @@
 import 'package:flexify/flexify.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:wolly/Providers/genre_provider.dart';
+import 'package:wolly/features/genre/domain/models/genre.dart';
+import 'package:wolly/features/library/presentation/screens/genre_books.dart';
 import 'package:wolly/features/platform/presentation/widgets/platform_app_bar.dart';
-import 'package:wolly/models/genre.dart';
 
 class GenrePage extends StatefulWidget {
   const GenrePage({Key? key}) : super(key: key);

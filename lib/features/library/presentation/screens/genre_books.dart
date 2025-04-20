@@ -2,8 +2,8 @@ import 'package:flexify/flexify.dart';
 import 'package:flutter/material.dart';
 import 'package:wolly/Providers/library_provider.dart';
 import 'package:wolly/features/platform/presentation/widgets/platform_app_bar.dart';
-import 'package:wolly/models/book.dart';
-import 'package:wolly/models/genre.dart';
+import 'package:wolly/features/library/domain/models/book.dart';
+import 'package:wolly/features/genre/domain/models/genre.dart';
 import 'package:wolly/read_book.dart';
 import 'package:wolly/read_pdf.dart';
 

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:wolly/models/book.dart';
+import 'package:wolly/features/library/domain/models/book.dart';
 
 class LibraryProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -36,6 +36,7 @@ class LibraryProvider with ChangeNotifier {
               genre: doc.data()['genre'],
               downloadUrl: doc.data()['url'],
               fileType: _getFileTypeFromUrl(doc.data()['url']),
+              isPublished: doc.data()['isPublished'] ?? false,
             ),
           );
         }

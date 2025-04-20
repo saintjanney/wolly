@@ -4,20 +4,20 @@ import 'package:flexify/flexify.dart';
 class PlatformAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final List<Widget>? actions;
-  final bool showBackButton;
   final VoidCallback? onBackPressed;
 
   const PlatformAppBar({
     super.key,
     required this.title,
     this.actions,
-    this.showBackButton = false,
     this.onBackPressed,
   });
 
   @override
   Widget build(BuildContext context) {
     return AppBar(
+      automaticallyImplyLeading: false,
+      centerTitle: true,
       title: Text(
         title,
         style: TextStyle(
@@ -25,12 +25,6 @@ class PlatformAppBar extends StatelessWidget implements PreferredSizeWidget {
           fontWeight: FontWeight.bold,
         ),
       ),
-      leading: showBackButton
-          ? IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: onBackPressed ?? () => Navigator.of(context).pop(),
-            )
-          : null,
       actions: actions,
       elevation: 0,
       backgroundColor: Colors.white,
@@ -40,4 +34,4 @@ class PlatformAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-} 
+}

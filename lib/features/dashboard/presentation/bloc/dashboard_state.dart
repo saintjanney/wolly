@@ -1,13 +1,12 @@
 import 'package:equatable/equatable.dart';
-import 'package:wolly/features/dashboard/domain/models/reading_progress.dart';
-import 'package:wolly/features/dashboard/domain/models/book_recommendation.dart';
+import 'package:wolly/features/library/domain/models/book.dart';
 
 enum DashboardStatus { initial, loading, loaded, error }
 
 class DashboardState extends Equatable {
   final DashboardStatus status;
-  final List<ReadingProgress> readingProgress;
-  final List<BookRecommendation> recommendations;
+  final List<Book> readingProgress;
+  final List<Book> recommendations;
   final String errorMessage;
 
   const DashboardState({
@@ -19,8 +18,8 @@ class DashboardState extends Equatable {
 
   DashboardState copyWith({
     DashboardStatus? status,
-    List<ReadingProgress>? readingProgress,
-    List<BookRecommendation>? recommendations,
+    List<Book>? readingProgress,
+    List<Book>? recommendations,
     String? errorMessage,
   }) {
     return DashboardState(

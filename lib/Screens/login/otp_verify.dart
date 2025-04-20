@@ -8,7 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-import 'package:wolly/Screens/library/library.dart';
+import 'package:wolly/features/library/presentation/screens/library.dart';
 
 /// This is the basic usage of Pinput
 /// For more examples check out the demo directory

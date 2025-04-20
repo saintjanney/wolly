@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:wolly/models/book.dart';
+import 'package:wolly/features/library/domain/models/book.dart';
 
 class ReadPDF extends StatefulWidget {
   final Book book;

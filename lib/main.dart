@@ -4,7 +4,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
-import 'package:wolly/Providers/genre_provider.dart';
 import 'package:wolly/Screens/wolly_admin.dart';
 import 'package:wolly/core/theme/app_theme.dart';
 import 'package:wolly/features/authentication/data/auth_repository.dart';
@@ -13,13 +12,15 @@ import 'package:wolly/features/authentication/presentation/screens/account_creat
 import 'package:wolly/features/dashboard/data/dashboard_repository.dart';
 import 'package:wolly/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:wolly/features/dashboard/presentation/screens/dashboard_screen.dart';
+import 'package:wolly/features/genre/data/genre_repository.dart';
+import 'package:wolly/features/genre/presentation/bloc/genre_bloc.dart';
 import 'package:wolly/features/library/presentation/screens/file_download_example_screen.dart';
 import 'package:wolly/features/library/presentation/screens/genre_books.dart';
 import 'package:wolly/features/library/presentation/screens/genre_page.dart';
 import 'package:wolly/features/platform/presentation/screens/platform_screen.dart';
-import 'package:wolly/models/genre.dart';
+import 'package:wolly/features/genre/domain/models/genre.dart';
 import 'package:wolly/providers/mock_profile_provider.dart';
-import 'package:wolly/Screens/library/library.dart';
+import 'package:wolly/features/library/presentation/screens/library.dart';
 import 'package:wolly/Screens/login/otp_verify.dart';
 import 'package:wolly/Screens/profile/profile_screen.dart';
 import 'package:wolly/screens/login/login.dart';
@@ -41,11 +42,10 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Initialize EmailOTP (using version 2.0.1 API)
-
   // Create repositories
   final authRepository = AuthRepository();
   final dashboardRepository = DashboardRepository();
+  final genreRepository = GenreRepository();
 
   runApp(
     MultiProvider(
@@ -56,6 +56,9 @@ Future<void> main() async {
         ),
         BlocProvider<DashboardBloc>(
           create: (context) => DashboardBloc(dashboardRepository: dashboardRepository),
+        ),
+        BlocProvider<GenreBloc>(
+          create: (context) => GenreBloc(genreRepository: genreRepository),
         ),
         // ChangeNotifier providers
         ChangeNotifierProvider<MockProfileProvider>(
@@ -137,7 +140,7 @@ class MyApp extends StatelessWidget {
           }
         },
         theme: AppTheme.lightTheme,
-        initialRoute: "/",
+        initialRoute: "/platform",
       ),
     );
   }

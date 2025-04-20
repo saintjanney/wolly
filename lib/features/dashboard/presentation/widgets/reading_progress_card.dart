@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flexify/flexify.dart';
 import 'package:intl/intl.dart';
-import 'package:wolly/features/dashboard/domain/models/reading_progress.dart';
+import 'package:wolly/features/library/domain/models/book.dart';
 import 'package:wolly/read_book.dart';
 import 'package:wolly/read_pdf.dart';
-import 'package:wolly/models/book.dart';
 
 class ReadingProgressCard extends StatelessWidget {
-  final ReadingProgress progress;
+  final Book book;
   final double width;
   final double height;
 
   const ReadingProgressCard({
     super.key, 
-    required this.progress,
+    required this.book,
     this.width = 300, 
     this.height = 120,
   });
@@ -35,20 +34,10 @@ class ReadingProgressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fileType = _determineFileType(progress.title);
-    
     return GestureDetector(
       onTap: () {
-        // Create book model to continue reading
-        final book = Book(
-          title: progress.title,
-          genre: '',
-          downloadUrl: '',  // This would need to be populated from a repository
-          fileType: fileType,
-        );
-        
         // Navigate to appropriate reader
-        if (fileType == 'pdf') {
+        if (book.fileType == 'pdf') {
           Navigator.of(context, rootNavigator: true).push(
             MaterialPageRoute(
               builder: (context) => ReadPDF(
@@ -93,9 +82,9 @@ class ReadingProgressCard extends StatelessWidget {
                 width: 80.rs,
                 height: double.infinity,
                 color: Colors.grey[300],
-                child: progress.coverUrl.isNotEmpty
+                child: book.coverUrl != null && book.coverUrl!.isNotEmpty
                     ? Image.network(
-                        progress.coverUrl,
+                        book.coverUrl!,
                         fit: BoxFit.cover,
                         errorBuilder: (ctx, obj, st) => Center(
                           child: Icon(
@@ -128,7 +117,7 @@ class ReadingProgressCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          progress.title,
+                          book.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -138,7 +127,9 @@ class ReadingProgressCard extends StatelessWidget {
                         ),
                         SizedBox(height: 4.rs),
                         Text(
-                          'Last read: ${_formatLastRead(progress.lastRead)}',
+                          book.lastRead != null 
+                              ? 'Last read: ${_formatLastRead(book.lastRead!)}'
+                              : 'Not started yet',
                           style: TextStyle(
                             fontSize: 10.rt,
                             color: Colors.grey[600],
@@ -153,7 +144,7 @@ class ReadingProgressCard extends StatelessWidget {
                       children: [
                         // Progress percentage text
                         Text(
-                          '${(progress.percentageComplete * 100).toInt()}% Complete',
+                          '${((book.percentageComplete ?? 0) * 100).toInt()}% Complete',
                           style: TextStyle(
                             fontSize: 10.rt,
                             fontWeight: FontWeight.w500,
@@ -164,7 +155,7 @@ class ReadingProgressCard extends StatelessWidget {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4.rs),
                           child: LinearProgressIndicator(
-                            value: progress.percentageComplete,
+                            value: book.percentageComplete ?? 0,
                             minHeight: 6.rs,
                             backgroundColor: Colors.grey[200],
                             valueColor: AlwaysStoppedAnimation<Color>(
@@ -175,7 +166,7 @@ class ReadingProgressCard extends StatelessWidget {
                         SizedBox(height: 4.rs),
                         // Page count
                         Text(
-                          'Page ${progress.pagesRead} of ${progress.totalPages}',
+                          'Page ${book.pagesRead ?? 0} of ${book.totalPages ?? 0}',
                           style: TextStyle(
                             fontSize: 10.rt,
                             color: Colors.grey[600],
@@ -201,15 +192,5 @@ class ReadingProgressCard extends StatelessWidget {
         ),
       ),
     );
-  }
-  
-  // Helper method to determine file type from title
-  // In a real app, this would come from the repository
-  String _determineFileType(String title) {
-    if (title.toLowerCase().endsWith('.pdf')) {
-      return 'pdf';
-    } else {
-      return 'epub'; // Default to epub
-    }
   }
 } 

@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flexify/flexify.dart';
-import 'package:wolly/features/dashboard/domain/models/book_recommendation.dart';
+import 'package:wolly/features/library/domain/models/book.dart';
 import 'package:wolly/read_book.dart';
 import 'package:wolly/read_pdf.dart';
-import 'package:wolly/models/book.dart';
 
 class BookRecommendationCard extends StatelessWidget {
-  final BookRecommendation recommendation;
+  final Book book;
   final double width;
   final double height;
 
   const BookRecommendationCard({
     super.key, 
-    required this.recommendation,
+    required this.book,
     this.width = 150, 
     this.height = 220,
   });
@@ -21,16 +20,8 @@ class BookRecommendationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        // Convert to our Book model for reading
-        final book = Book(
-          title: recommendation.title,
-          genre: recommendation.genre,
-          downloadUrl: recommendation.downloadUrl,
-          fileType: recommendation.fileType,
-        );
-
         // Navigate to appropriate reader
-        if (recommendation.fileType == 'pdf') {
+        if (book.fileType == 'pdf') {
           Navigator.of(context, rootNavigator: true).push(
             MaterialPageRoute(
               builder: (context) => ReadPDF(
@@ -78,9 +69,9 @@ class BookRecommendationCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.grey[300],
                 ),
-                child: recommendation.coverUrl.isNotEmpty
+                child: book.coverUrl != null && book.coverUrl!.isNotEmpty
                     ? Image.network(
-                        recommendation.coverUrl,
+                        book.coverUrl!,
                         fit: BoxFit.cover,
                         errorBuilder: (ctx, obj, st) => Center(
                           child: Icon(
@@ -107,7 +98,7 @@ class BookRecommendationCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    recommendation.title,
+                    book.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -117,7 +108,7 @@ class BookRecommendationCard extends StatelessWidget {
                   ),
                   SizedBox(height: 2.rs),
                   Text(
-                    recommendation.author,
+                    book.author ?? 'Unknown',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -135,7 +126,7 @@ class BookRecommendationCard extends StatelessWidget {
                       ),
                       SizedBox(width: 2.rs),
                       Text(
-                        recommendation.rating.toStringAsFixed(1),
+                        book.rating != null ? book.rating!.toStringAsFixed(1) : '0.0',
                         style: TextStyle(
                           fontSize: 10.rt,
                           fontWeight: FontWeight.w500,
