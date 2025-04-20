@@ -140,7 +140,7 @@ class MyApp extends StatelessWidget {
           }
         },
         theme: AppTheme.lightTheme,
-        initialRoute: "/platform",
+        initialRoute: "/",
       ),
     );
   }
