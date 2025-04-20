@@ -26,10 +26,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
-    
+
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: isDesktop 
+      appBar: isDesktop
           ? AppBar(
               backgroundColor: Colors.white,
               title: Text(
@@ -53,7 +53,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               return const Center(
                 child: CircularProgressIndicator(),
               );
-            
+
             case DashboardStatus.loaded:
               return RefreshIndicator(
                 onRefresh: () async {
@@ -61,7 +61,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 },
                 child: _buildDashboardContent(context, state),
               );
-            
+
             case DashboardStatus.error:
               return Center(
                 child: Column(
@@ -92,7 +92,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildDashboardContent(BuildContext context, DashboardState state) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
-    
+
     return CustomScrollView(
       slivers: [
         // Reading Progress Section
@@ -142,7 +142,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
         ),
-        
+
         // Display recommendations as a grid or list
         isDesktop
             ? _buildDesktopRecommendations(state)
@@ -150,7 +150,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ],
     );
   }
-  
+
   Widget _buildDesktopRecommendations(DashboardState state) {
     if (state.recommendations.isEmpty) {
       return SliverToBoxAdapter(
@@ -168,7 +168,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       );
     }
-    
+
     return SliverPadding(
       padding: EdgeInsets.all(16.rs),
       sliver: SliverGrid(
@@ -190,7 +190,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-  
+
   Widget _buildMobileRecommendations(DashboardState state) {
     if (state.recommendations.isEmpty) {
       return SliverToBoxAdapter(
@@ -208,7 +208,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       );
     }
-    
+
     return SliverPadding(
       padding: EdgeInsets.symmetric(horizontal: 8.rs),
       sliver: SliverMasonryGrid.count(
@@ -225,4 +225,4 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-} 
+}
