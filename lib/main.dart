@@ -1,10 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
-import 'package:wolly/Screens/wolly_admin.dart';
 import 'package:wolly/core/theme/app_theme.dart';
 import 'package:wolly/features/authentication/data/auth_repository.dart';
 import 'package:wolly/features/authentication/presentation/bloc/auth_bloc.dart';
@@ -18,6 +16,7 @@ import 'package:wolly/features/library/presentation/screens/file_download_exampl
 import 'package:wolly/features/library/presentation/screens/genre_books.dart';
 import 'package:wolly/features/library/presentation/screens/genre_page.dart';
 import 'package:wolly/features/platform/presentation/screens/platform_screen.dart';
+import 'package:wolly/features/platform/presentation/screens/my_books_screen.dart';
 import 'package:wolly/features/genre/domain/models/genre.dart';
 import 'package:wolly/providers/mock_profile_provider.dart';
 import 'package:wolly/features/library/presentation/screens/library.dart';
@@ -55,7 +54,8 @@ Future<void> main() async {
           create: (context) => AuthBloc(authRepository: authRepository),
         ),
         BlocProvider<DashboardBloc>(
-          create: (context) => DashboardBloc(dashboardRepository: dashboardRepository),
+          create: (context) =>
+              DashboardBloc(dashboardRepository: dashboardRepository),
         ),
         BlocProvider<GenreBloc>(
           create: (context) => GenreBloc(genreRepository: genreRepository),
@@ -100,9 +100,13 @@ class MyApp extends StatelessWidget {
                   userEmail: email,
                 ),
               );
+            // case '/':
+            //   return MaterialPageRoute(
+            //     builder: (context) => const Login(),
+            //   );
             case '/':
               return MaterialPageRoute(
-                builder: (context) => const Login(),
+                builder: (context) => const MyBooksScreen(),
               );
             case '/platform':
               return MaterialPageRoute(

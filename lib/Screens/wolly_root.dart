@@ -1,8 +1,8 @@
 import "package:flutter/material.dart";
 import "package:persistent_bottom_nav_bar_v2/persistent_bottom_nav_bar_v2.dart";
+import "package:wolly/features/library/presentation/screens/library.dart";
 import "package:wolly/screens/dashboard_screen.dart";
 
-import "package:wolly/screens/library/library.dart";
 import "package:wolly/screens/profile/profile_screen.dart";
 
 class MinimalExample extends StatelessWidget {
