@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wolly/providers/auth_provider.dart';
-import 'package:wolly/providers/genre_provider.dart';
+import 'package:wolly_mobile/providers/auth_provider.dart';
+import 'package:wolly_mobile/providers/genre_provider.dart';
 
 class ContentPreferencesScreen extends StatefulWidget {
   const ContentPreferencesScreen({super.key});

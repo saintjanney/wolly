@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flexify/flexify.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:wolly/features/dashboard/presentation/bloc/dashboard_bloc.dart';
-import 'package:wolly/features/dashboard/presentation/bloc/dashboard_event.dart';
-import 'package:wolly/features/dashboard/presentation/bloc/dashboard_state.dart';
-import 'package:wolly/features/dashboard/presentation/widgets/book_recommendation_card.dart';
-import 'package:wolly/features/dashboard/presentation/widgets/reading_progress_card.dart';
-import 'package:wolly/features/platform/presentation/widgets/platform_app_bar.dart';
+import 'package:wolly_mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
+import 'package:wolly_mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
+import 'package:wolly_mobile/features/dashboard/presentation/bloc/dashboard_state.dart';
+import 'package:wolly_mobile/features/dashboard/presentation/widgets/book_recommendation_card.dart';
+import 'package:wolly_mobile/features/dashboard/presentation/widgets/reading_progress_card.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -42,8 +41,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               elevation: 0,
             )
-          : const PlatformAppBar(
-              title: 'Wolly',
+          : AppBar(
+              backgroundColor: Colors.white,
+              title: const Text('Wolly'),
+              foregroundColor: Colors.black,
+              elevation: 0,
             ),
       body: BlocBuilder<DashboardBloc, DashboardState>(
         builder: (context, state) {

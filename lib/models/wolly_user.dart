@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 
 class WollyUser {
   final String? firstName;
@@ -23,7 +22,6 @@ class WollyUser {
       required this.email,
       required this.gender});
 
-  @factory
   factory WollyUser.fromMap(Map<String, dynamic> map) {
     return WollyUser(
       firstName: map['first_name'],

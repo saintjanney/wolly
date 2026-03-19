@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:wolly/models/wolly_user.dart';
+import 'package:wolly_mobile/models/wolly_user.dart';
 
 class MockProfileProvider with ChangeNotifier {
   WollyUser? _user;

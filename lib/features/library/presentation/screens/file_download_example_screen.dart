@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:wolly/features/library/data/file_downloader.dart';
+import 'package:wolly_mobile/features/library/data/file_downloader.dart';
 
 class FileDownloadExampleScreen extends StatefulWidget {
   const FileDownloadExampleScreen({super.key});

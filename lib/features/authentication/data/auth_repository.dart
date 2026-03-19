@@ -127,6 +127,34 @@ class AuthRepository {
     }
   }
 
+  /// Saves profile data for an already-authenticated user (e.g. after phone
+  /// or email-link sign-in) without creating a new Firebase Auth account.
+  Future<String> saveUserProfile({
+    required String firstName,
+    required String lastName,
+    required String countryCode,
+    required String phoneNumber,
+    required DateTime dateOfBirth,
+  }) async {
+    try {
+      final user = _firebaseAuth.currentUser;
+      if (user == null) return 'Not authenticated';
+
+      await _firestore.collection('users').doc(user.uid).set({
+        'first_name': firstName,
+        'last_name': lastName,
+        'email': user.email ?? '',
+        'country_code': countryCode,
+        'date_of_birth': dateOfBirth.toIso8601String(),
+        'phone_number': phoneNumber,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return '';
+    } catch (e) {
+      return 'Error saving profile: $e';
+    }
+  }
+
   Future<void> signOut() async {
     await _firebaseAuth.signOut();
   }

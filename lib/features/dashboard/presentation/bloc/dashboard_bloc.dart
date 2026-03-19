@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:wolly/features/dashboard/data/dashboard_repository.dart';
-import 'package:wolly/features/dashboard/presentation/bloc/dashboard_event.dart';
-import 'package:wolly/features/dashboard/presentation/bloc/dashboard_state.dart';
+import 'package:wolly_mobile/features/dashboard/data/dashboard_repository.dart';
+import 'package:wolly_mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
+import 'package:wolly_mobile/features/dashboard/presentation/bloc/dashboard_state.dart';
 
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final DashboardRepository _dashboardRepository;

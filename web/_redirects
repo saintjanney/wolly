@@ -1,0 +1,21 @@
+# Netlify-style redirects for Firebase hosting
+# This ensures static assets are served correctly
+
+# Serve manifest.json directly
+/manifest.json /manifest.json 200
+
+# Serve all other static assets
+/*.js /:splat.js 200
+/*.css /:splat.css 200
+/*.wasm /:splat.wasm 200
+/*.dart /:splat.dart 200
+/*.json /:splat.json 200
+/*.png /:splat.png 200
+/*.jpg /:splat.jpg 200
+/*.jpeg /:splat.jpeg 200
+/*.gif /:splat.gif 200
+/*.svg /:splat.svg 200
+/*.ico /:splat.ico 200
+
+# Fallback to index.html for SPA routing
+/* /index.html 200

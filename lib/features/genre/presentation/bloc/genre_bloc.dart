@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:wolly/features/genre/data/genre_repository.dart';
-import 'package:wolly/features/genre/domain/genre_event.dart';
-import 'package:wolly/features/genre/domain/genre_state.dart';
+import 'package:wolly_mobile/features/genre/data/genre_repository.dart';
+import 'package:wolly_mobile/features/genre/domain/genre_event.dart';
+import 'package:wolly_mobile/features/genre/domain/genre_state.dart';
 
 class GenreBloc extends Bloc<GenreEvent, GenreState> {
   final GenreRepository _genreRepository;

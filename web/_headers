@@ -1,0 +1,42 @@
+# Flutter Web Headers Configuration
+# This file ensures proper MIME types for Flutter web assets
+
+# JavaScript files
+/*.js
+  Content-Type: application/javascript
+  Cache-Control: max-age=31536000
+
+# CSS files  
+/*.css
+  Content-Type: text/css
+  Cache-Control: max-age=31536000
+
+# WebAssembly files
+/*.wasm
+  Content-Type: application/wasm
+  Cache-Control: max-age=31536000
+
+# Dart files
+/*.dart
+  Content-Type: application/dart
+  Cache-Control: max-age=31536000
+
+# JSON files
+/*.json
+  Content-Type: application/json
+  Cache-Control: max-age=31536000
+
+# HTML files
+/*.html
+  Content-Type: text/html
+  Cache-Control: max-age=0
+
+# Service Worker
+/flutter_service_worker.js
+  Content-Type: application/javascript
+  Cache-Control: max-age=0
+
+# Main bootstrap
+/flutter_bootstrap.js
+  Content-Type: application/javascript
+  Cache-Control: max-age=0

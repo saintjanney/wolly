@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flexify/flexify.dart';
-import 'package:wolly/features/library/domain/models/book.dart';
-import 'package:wolly/read_book.dart';
-import 'package:wolly/read_pdf.dart';
+import 'package:wolly_mobile/features/library/domain/models/book.dart';
 
 class BookRecommendationCard extends StatelessWidget {
   final Book book;
@@ -20,24 +18,10 @@ class BookRecommendationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        // Navigate to appropriate reader
-        if (book.fileType == 'pdf') {
-          Navigator.of(context, rootNavigator: true).push(
-            MaterialPageRoute(
-              builder: (context) => ReadPDF(
-                book: book,
-              ),
-            ),
-          );
-        } else {
-          Navigator.of(context, rootNavigator: true).push(
-            MaterialPageRoute(
-              builder: (context) => ReadEpub(
-                book: book,
-              ),
-            ),
-          );
-        }
+        Navigator.of(context, rootNavigator: true).pushNamed(
+          '/book_detail',
+          arguments: book,
+        );
       },
       child: Container(
         width: width.rs,
@@ -91,32 +75,40 @@ class BookRecommendationCard extends StatelessWidget {
               ),
             ),
             
-            // Book Details
-            Padding(
+            // Book Details - Fixed height to prevent overflow
+            Container(
+              height: height.rs * 0.3, // 30% of total height for text content
               padding: EdgeInsets.all(8.rs),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    book.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12.rt,
-                      fontWeight: FontWeight.bold,
+                  Flexible( // Use Flexible to allow text to shrink if needed
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          book.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.rt,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 2.rs),
+                        Text(
+                          book.author ?? 'Unknown',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10.rt,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  SizedBox(height: 2.rs),
-                  Text(
-                    book.author ?? 'Unknown',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 10.rt,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  SizedBox(height: 4.rs),
                   Row(
                     children: [
                       Icon(

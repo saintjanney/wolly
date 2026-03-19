@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:wolly/providers/auth_provider.dart';
-import 'package:wolly/screens/create_account/persona_type_screen.dart';
-import 'package:wolly/lumin_utll.dart';
+import 'package:wolly_mobile/providers/auth_provider.dart';
+import 'package:wolly_mobile/screens/create_account/persona_type_screen.dart';
+import 'package:wolly_mobile/lumin_utll.dart';
 
 class ProfileInfoScreen extends StatefulWidget {
   const ProfileInfoScreen({super.key});

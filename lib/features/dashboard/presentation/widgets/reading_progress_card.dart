@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flexify/flexify.dart';
-import 'package:intl/intl.dart';
-import 'package:wolly/features/library/domain/models/book.dart';
-import 'package:wolly/read_book.dart';
-import 'package:wolly/read_pdf.dart';
+import 'package:wolly_mobile/features/library/domain/models/book.dart';
+import 'package:wolly_mobile/read_book.dart';
+import 'package:wolly_mobile/read_pdf.dart';
 
 class ReadingProgressCard extends StatelessWidget {
   final Book book;

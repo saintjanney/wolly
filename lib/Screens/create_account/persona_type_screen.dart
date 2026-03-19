@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:wolly/providers/auth_provider.dart';
-import 'package:wolly/screens/create_account/content_preferences.dart';
+import 'package:wolly_mobile/providers/auth_provider.dart';
+import 'package:wolly_mobile/screens/create_account/content_preferences.dart';
 
 class PersonaTypeScreen extends StatefulWidget {
   const PersonaTypeScreen({super.key});

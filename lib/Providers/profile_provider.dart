@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:wolly/models/wolly_user.dart';
+import 'package:wolly_mobile/models/wolly_user.dart';
 
 class ProfileProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

@@ -1,6 +1,7 @@
-import 'package:wolly/features/genre/domain/models/genre.dart';
 
 class Book {
+  String? id;
+  String? authorId;
   String title;
   String genre;
   String downloadUrl;
@@ -14,8 +15,13 @@ class Book {
   double? percentageComplete;
   String? description;
   double? rating;
-  
+  double price;
+  bool isFree;
+  bool isPurchased;
+
   Book({
+    this.id,
+    this.authorId,
     required this.title,
     required this.genre,
     required this.downloadUrl,
@@ -29,10 +35,15 @@ class Book {
     this.percentageComplete,
     this.description,
     this.rating,
+    this.price = 0.0,
+    this.isFree = true,
+    this.isPurchased = false,
   });
 
-  factory Book.fromJson(Map<String, dynamic> json) {
+  factory Book.fromJson(Map<String, dynamic> json, {String? id}) {
     return Book(
+      id: id ?? json['id'],
+      authorId: json['ownerUserId'] ?? json['authorId'],
       title: json['title'],
       genre: json['genre'],
       downloadUrl: json['url'],
@@ -46,9 +57,12 @@ class Book {
       percentageComplete: json['percentageComplete']?.toDouble(),
       description: json['description'],
       rating: json['rating']?.toDouble(),
+      price: (json['price'] ?? 0.0).toDouble(),
+      isFree: json['isFree'] ?? (json['price'] == null || json['price'] == 0),
+      isPurchased: json['isPurchased'] ?? false,
     );
   }
-  
+
   Map<String, dynamic> toJson() {
     return {
       'title': title,
@@ -64,6 +78,8 @@ class Book {
       'percentageComplete': percentageComplete,
       'description': description,
       'rating': rating,
+      'price': price,
+      'isFree': isFree,
     };
   }
   

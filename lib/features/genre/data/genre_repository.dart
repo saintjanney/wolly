@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:wolly/features/genre/domain/models/genre.dart';
+import 'package:wolly_mobile/features/genre/domain/models/genre.dart';
 
 class GenreRepository {
   final FirebaseFirestore _firestore;

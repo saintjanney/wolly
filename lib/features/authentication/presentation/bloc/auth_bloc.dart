@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:wolly/features/authentication/data/auth_repository.dart';
-import 'package:wolly/features/authentication/domain/auth_event.dart';
-import 'package:wolly/features/authentication/domain/auth_state.dart';
+import 'package:wolly_mobile/features/authentication/data/auth_repository.dart';
+import 'package:wolly_mobile/features/authentication/domain/auth_event.dart';
+import 'package:wolly_mobile/features/authentication/domain/auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
@@ -15,6 +15,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthCheckStatusEvent>(_onAuthCheckStatus);
     on<AuthLoginEvent>(_onAuthLogin);
     on<AuthSignUpEvent>(_onAuthSignUp);
+    on<AuthSaveProfileEvent>(_onAuthSaveProfile);
     on<AuthSetGenderAndBirthdayEvent>(_onAuthSetGenderAndBirthday);
     on<AuthSetPersonaEvent>(_onAuthSetPersona);
     on<AuthSetContentPreferencesEvent>(_onAuthSetContentPreferences);
@@ -96,6 +97,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         isLoading: false,
         errorMessage: e.toString(),
       ));
+    }
+  }
+
+  Future<void> _onAuthSaveProfile(
+    AuthSaveProfileEvent event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(state.copyWith(isLoading: true, errorMessage: null));
+    try {
+      final result = await _authRepository.saveUserProfile(
+        firstName: event.firstName,
+        lastName: event.lastName,
+        countryCode: event.countryCode,
+        phoneNumber: event.phoneNumber,
+        dateOfBirth: event.dateOfBirth,
+      );
+      if (result.isEmpty) {
+        emit(state.copyWith(isLoading: false, profileSaved: true));
+      } else {
+        emit(state.copyWith(isLoading: false, errorMessage: result));
+      }
+    } catch (e) {
+      emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
     }
   }
 

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:wolly/features/library/domain/models/book.dart';
+import 'package:wolly_mobile/features/library/domain/models/book.dart';
 
 class DashboardRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -38,6 +38,8 @@ class DashboardRepository {
         if (bookSnapshot.exists) {
           final bookData = bookSnapshot.data()!;
           books.add(Book(
+            id: bookSnapshot.id,
+            authorId: bookData['ownerUserId'],
             title: bookData['title'] ?? '',
             genre: bookData['genre'] ?? '',
             downloadUrl: bookData['url'] ?? '',
@@ -47,12 +49,14 @@ class DashboardRepository {
             author: bookData['author'] ?? 'Unknown',
             pagesRead: data['pagesRead'] ?? 0,
             totalPages: data['totalPages'] ?? 100,
-            lastRead: data['lastRead'] != null 
-                ? (data['lastRead'] as Timestamp).toDate() 
+            lastRead: data['lastRead'] != null
+                ? (data['lastRead'] as Timestamp).toDate()
                 : DateTime.now(),
             percentageComplete: data['percentageComplete']?.toDouble() ?? 0.0,
             description: bookData['description'],
             rating: bookData['rating']?.toDouble() ?? 0.0,
+            price: (bookData['price'] ?? 0.0).toDouble(),
+            isFree: bookData['isFree'] ?? (bookData['price'] == null || bookData['price'] == 0),
           ));
         }
       }
@@ -112,6 +116,8 @@ class DashboardRepository {
       for (var doc in booksSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         books.add(Book(
+          id: doc.id,
+          authorId: data['ownerUserId'],
           title: data['title'] ?? '',
           genre: data['genre'] ?? '',
           downloadUrl: data['url'] ?? '',
@@ -121,6 +127,8 @@ class DashboardRepository {
           author: data['author'] ?? 'Unknown',
           description: data['description'],
           rating: data['rating']?.toDouble() ?? 4.0,
+          price: (data['price'] ?? 0.0).toDouble(),
+          isFree: data['isFree'] ?? (data['price'] == null || data['price'] == 0),
         ));
       }
       

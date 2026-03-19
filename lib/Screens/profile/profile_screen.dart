@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wolly/providers/mock_auth_provider.dart';
-import 'package:wolly/providers/mock_profile_provider.dart';
-import 'package:wolly/features/platform/presentation/widgets/platform_app_bar.dart';
-import 'package:wolly/screens/login/login.dart';
+import 'package:wolly_mobile/providers/mock_auth_provider.dart';
+import 'package:wolly_mobile/providers/mock_profile_provider.dart';
+import 'package:wolly_mobile/screens/login/login.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -54,8 +53,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const PlatformAppBar(
-        title: 'Profile',
+      appBar: AppBar(
+        title: const Text('Profile'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
       ),
       backgroundColor: Colors.white,
       body: Consumer<MockProfileProvider>(builder: (context, profileProvider, _) {

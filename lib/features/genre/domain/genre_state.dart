@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:wolly/features/genre/domain/models/genre.dart';
+import 'package:wolly_mobile/features/genre/domain/models/genre.dart';
 
 enum GenreStatus { initial, loading, loaded, error }
 

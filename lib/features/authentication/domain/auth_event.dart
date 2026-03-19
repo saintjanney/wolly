@@ -81,4 +81,24 @@ class AuthSetContentPreferencesEvent extends AuthEvent {
   List<Object?> get props => [contentPreferences];
 }
 
+class AuthSaveProfileEvent extends AuthEvent {
+  final String firstName;
+  final String lastName;
+  final String countryCode;
+  final String phoneNumber;
+  final DateTime dateOfBirth;
+
+  const AuthSaveProfileEvent({
+    required this.firstName,
+    required this.lastName,
+    required this.countryCode,
+    required this.phoneNumber,
+    required this.dateOfBirth,
+  });
+
+  @override
+  List<Object?> get props =>
+      [firstName, lastName, countryCode, phoneNumber, dateOfBirth];
+}
+
 class AuthSignOutEvent extends AuthEvent {} 

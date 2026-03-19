@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wolly/providers/profile_provider.dart';
-import 'package:wolly/providers/dashboard_provider.dart';
+import 'package:wolly_mobile/providers/profile_provider.dart';
+import 'package:wolly_mobile/providers/dashboard_provider.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});

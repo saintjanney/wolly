@@ -1,6 +1,5 @@
 import 'package:flexify/flexify.dart';
 import 'package:flutter/material.dart';
-import 'package:wolly/Screens/login/otp_verify.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 

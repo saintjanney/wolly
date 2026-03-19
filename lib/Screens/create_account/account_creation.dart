@@ -1,6 +1,6 @@
 import 'package:flexify/flexify.dart';
 import 'package:flutter/material.dart';
-import 'package:wolly/providers/auth_provider.dart';
+import 'package:wolly_mobile/providers/auth_provider.dart';
 
 class AccountCreationScreen extends StatefulWidget {
   final String userEmail;

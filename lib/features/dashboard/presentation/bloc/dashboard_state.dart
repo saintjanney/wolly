@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:wolly/features/library/domain/models/book.dart';
+import 'package:wolly_mobile/features/library/domain/models/book.dart';
 
 enum DashboardStatus { initial, loading, loaded, error }
 

@@ -42,7 +42,6 @@ class DashboardProvider with ChangeNotifier {
         QuerySnapshot<Map<String, dynamic>> rawDocs =
             await firestore.collection('epubs').get();
         for (var v in rawDocs.docs) {
-          Uint8List data = await downloadEpubFile(v.data()["url"]);
           allBooks.add(WollyEpub(
               name: v.data()["name"],
               url: v.data()["url"],

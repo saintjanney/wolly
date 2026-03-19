@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:wolly/features/genre/domain/models/genre.dart';
+import 'package:wolly_mobile/features/genre/domain/models/genre.dart';
 
 class GenreProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

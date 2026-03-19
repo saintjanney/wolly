@@ -1,13 +1,8 @@
-import 'package:flutter/material.dart';
-
 class MockAuthProvider {
-  // Mock user is always signed in for simplicity
-  bool _isSignedIn = true;
 
   Future<dynamic> login({required String email, required String password}) async {
     // Always succeed in mock implementation
     await Future.delayed(const Duration(seconds: 1)); // Simulate network delay
-    _isSignedIn = true;
     return "";
   }
 
@@ -22,7 +17,6 @@ class MockAuthProvider {
   }) async {
     // Always succeed in mock implementation
     await Future.delayed(const Duration(seconds: 1)); // Simulate network delay
-    _isSignedIn = true;
     return "";
   }
 
@@ -69,6 +63,5 @@ class MockAuthProvider {
   Future<void> signOut() async {
     // Simulate sign out
     await Future.delayed(const Duration(milliseconds: 500)); // Simulate network delay
-    _isSignedIn = false;
   }
 } 
