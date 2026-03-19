@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:wolly_mobile/features/authentication/presentation/screens/email_link_sent_screen.dart';
 
 class OtpLoginScreen extends StatefulWidget {
   const OtpLoginScreen({super.key});
@@ -12,15 +10,20 @@ class OtpLoginScreen extends StatefulWidget {
 }
 
 class _OtpLoginScreenState extends State<OtpLoginScreen> {
-  final TextEditingController _inputController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
   bool _isLoading = false;
   String _inputType = 'email'; // 'email' or 'phone'
   String _errorMessage = '';
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
-    _inputController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _phoneController.dispose();
     _inputFocusNode.dispose();
     super.dispose();
   }
@@ -30,7 +33,7 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -38,14 +41,19 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
               const SizedBox(height: 60),
               _buildHeader(),
               const SizedBox(height: 48),
-              _buildInputSection(),
+              if (_inputType == 'email') ...[
+                _buildEmailSection(),
+                const SizedBox(height: 16),
+                _buildPasswordSection(),
+              ] else
+                _buildPhoneSection(),
               const SizedBox(height: 24),
               _buildErrorSection(),
               const SizedBox(height: 32),
               _buildLoginButton(),
               const SizedBox(height: 24),
               _buildToggleInputType(),
-              const Spacer(),
+              const SizedBox(height: 40),
               _buildFooter(),
             ],
           ),
@@ -68,80 +76,123 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Enter your ${_inputType == 'email' ? 'email address' : 'phone number'} to get started',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.grey[600],
-          ),
+          _inputType == 'email'
+              ? 'Sign in with your email and password'
+              : 'Enter your phone number to get started',
+          style: TextStyle(fontSize: 16, color: Colors.grey[600]),
         ),
       ],
     );
   }
 
-  Widget _buildInputSection() {
+  Widget _buildEmailSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          _inputType == 'email' ? 'Email Address' : 'Phone Number',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
-          ),
-        ),
+        Text('Email Address',
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700])),
         const SizedBox(height: 8),
         TextField(
-          controller: _inputController,
+          controller: _emailController,
           focusNode: _inputFocusNode,
-          keyboardType: _inputType == 'email'
-              ? TextInputType.emailAddress
-              : TextInputType.phone,
-          inputFormatters: _inputType == 'phone'
-              ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9+]'))]
-              : null,
-          decoration: InputDecoration(
-            hintText: _inputType == 'email'
-                ? 'Enter your email address'
-                : '+1234567890 (include country code)',
-            prefixIcon: Icon(
-              _inputType == 'email' ? Icons.email : Icons.phone,
-              color: Colors.grey[600],
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
+          keyboardType: TextInputType.emailAddress,
+          decoration: _inputDecoration(
+            hint: 'Enter your email address',
+            icon: Icons.email,
           ),
-          onChanged: (value) {
-            setState(() {
-              _errorMessage = '';
-            });
-          },
+          onChanged: (_) => setState(() => _errorMessage = ''),
         ),
       ],
+    );
+  }
+
+  Widget _buildPasswordSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Password',
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700])),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _passwordController,
+          obscureText: _obscurePassword,
+          decoration: _inputDecoration(
+            hint: 'Enter your password',
+            icon: Icons.lock,
+          ).copyWith(
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                color: Colors.grey[600],
+              ),
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
+            ),
+          ),
+          onChanged: (_) => setState(() => _errorMessage = ''),
+          onSubmitted: (_) => _handleLogin(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhoneSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Phone Number',
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700])),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _phoneController,
+          focusNode: _inputFocusNode,
+          keyboardType: TextInputType.phone,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9+]'))
+          ],
+          decoration: _inputDecoration(
+            hint: '+1234567890 (include country code)',
+            icon: Icons.phone,
+          ),
+          onChanged: (_) => setState(() => _errorMessage = ''),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _inputDecoration(
+      {required String hint, required IconData icon}) {
+    return InputDecoration(
+      hintText: hint,
+      prefixIcon: Icon(icon, color: Colors.grey[600]),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
+      ),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
   }
 
   Widget _buildErrorSection() {
     if (_errorMessage.isEmpty) return const SizedBox.shrink();
-
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -154,13 +205,8 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
           Icon(Icons.error_outline, color: Colors.red[600], size: 20),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              _errorMessage,
-              style: TextStyle(
-                color: Colors.red[600],
-                fontSize: 14,
-              ),
-            ),
+            child: Text(_errorMessage,
+                style: TextStyle(color: Colors.red[600], fontSize: 14)),
           ),
         ],
       ),
@@ -175,9 +221,8 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.blue[700],
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           elevation: 0,
         ),
         child: _isLoading
@@ -185,16 +230,14 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
                 height: 20,
                 width: 20,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
+                    strokeWidth: 2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Colors.white)),
               )
             : Text(
-                _inputType == 'email' ? 'Send Sign-in Link' : 'Send OTP',
+                _inputType == 'email' ? 'Sign In' : 'Send OTP',
                 style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+                    fontSize: 16, fontWeight: FontWeight.w600),
               ),
       ),
     );
@@ -206,10 +249,7 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
       children: [
         Text(
           'Or use ${_inputType == 'email' ? 'phone number' : 'email address'}',
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 14,
-          ),
+          style: TextStyle(color: Colors.grey[600], fontSize: 14),
         ),
         const SizedBox(width: 8),
         TextButton(
@@ -217,9 +257,7 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
           child: Text(
             _inputType == 'email' ? 'Phone' : 'Email',
             style: TextStyle(
-              color: Colors.blue[700],
-              fontWeight: FontWeight.w600,
-            ),
+                color: Colors.blue[700], fontWeight: FontWeight.w600),
           ),
         ),
       ],
@@ -232,21 +270,15 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
         Text(
           'By continuing, you agree to our Terms of Service and Privacy Policy',
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.grey[500],
-            fontSize: 12,
-          ),
+          style: TextStyle(color: Colors.grey[500], fontSize: 12),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         Text(
           _inputType == 'email'
-              ? "We'll send a sign-in link to your email"
+              ? "Don't have an account? Enter your email and password above and we'll get you set up."
               : "We'll send a verification code via SMS",
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.grey[500],
-            fontSize: 12,
-          ),
+          style: TextStyle(color: Colors.grey[500], fontSize: 12),
         ),
       ],
     );
@@ -255,35 +287,29 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
   void _toggleInputType() {
     setState(() {
       _inputType = _inputType == 'email' ? 'phone' : 'email';
-      _inputController.clear();
       _errorMessage = '';
     });
     _inputFocusNode.requestFocus();
   }
 
   void _handleLogin() async {
-    final input = _inputController.text.trim();
+    if (_inputType == 'email') {
+      await _signInWithEmail();
+    } else {
+      await _sendPhoneOtp();
+    }
+  }
 
-    if (input.isEmpty) {
-      setState(() {
-        _errorMessage =
-            'Please enter your ${_inputType == 'email' ? 'email address' : 'phone number'}';
-      });
+  Future<void> _signInWithEmail() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || !_isValidEmail(email)) {
+      setState(() => _errorMessage = 'Please enter a valid email address');
       return;
     }
-
-    if (_inputType == 'email' && !_isValidEmail(input)) {
-      setState(() {
-        _errorMessage = 'Please enter a valid email address';
-      });
-      return;
-    }
-
-    if (_inputType == 'phone' && !_isValidPhone(input)) {
-      setState(() {
-        _errorMessage =
-            'Please enter a valid phone number with country code (e.g. +15551234567)';
-      });
+    if (password.isEmpty) {
+      setState(() => _errorMessage = 'Please enter your password');
       return;
     }
 
@@ -293,79 +319,64 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
     });
 
     try {
-      if (_inputType == 'email') {
-        await _sendEmailLink(input);
-      } else {
-        await _sendPhoneOtp(input);
-      }
+      await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
+      // AuthBloc listens to authStateChanges and routes automatically
     } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = e.message ?? 'Authentication failed. Please try again.';
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Network error. Please check your connection and try again.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+      if (e.code == 'user-not-found') {
+        // New user — send to account creation
+        if (mounted) {
+          Navigator.of(context).pushNamed(
+            '/account_creation',
+            arguments: {'email': email, 'alreadyAuthenticated': false},
+          );
+        }
+      } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        setState(() => _errorMessage =
+            'Incorrect password. Please try again.');
+      } else {
+        setState(
+            () => _errorMessage = e.message ?? 'Sign in failed. Please try again.');
       }
+    } catch (e) {
+      setState(() => _errorMessage =
+          'Network error. Please check your connection and try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _sendEmailLink(String email) async {
-    final actionCodeSettings = ActionCodeSettings(
-      url: 'https://wolly-1133d.firebaseapp.com',
-      handleCodeInApp: true,
-      androidPackageName: 'com.example.wolly',
-      androidInstallApp: true,
-      androidMinimumVersion: '21',
-      iOSBundleId: 'com.example.wolly',
-    );
+  Future<void> _sendPhoneOtp() async {
+    final phoneNumber = _phoneController.text.trim();
 
-    await FirebaseAuth.instance.sendSignInLinkToEmail(
-      email: email,
-      actionCodeSettings: actionCodeSettings,
-    );
-
-    // Save email so it can be retrieved when the link is opened
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_email_for_link', email);
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => EmailLinkSentScreen(email: email),
-        ),
-      );
+    if (phoneNumber.isEmpty || !_isValidPhone(phoneNumber)) {
+      setState(() => _errorMessage =
+          'Please enter a valid phone number with country code (e.g. +15551234567)');
+      return;
     }
-  }
 
-  Future<void> _sendPhoneOtp(String phoneNumber) async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
     await FirebaseAuth.instance.verifyPhoneNumber(
       phoneNumber: phoneNumber,
       verificationCompleted: (PhoneAuthCredential credential) async {
-        // Auto-resolution (Android only) — Firebase signs in automatically
         await FirebaseAuth.instance.signInWithCredential(credential);
       },
       verificationFailed: (FirebaseAuthException e) {
         if (mounted) {
           setState(() {
-            _errorMessage = e.message ?? 'Failed to verify phone number. Please try again.';
+            _errorMessage = e.message ??
+                'Failed to verify phone number. Please try again.';
             _isLoading = false;
           });
         }
       },
       codeSent: (String verificationId, int? resendToken) {
         if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
+          setState(() => _isLoading = false);
           Navigator.of(context).pushNamed(
             '/otp_verify',
             arguments: {
@@ -384,7 +395,6 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
   }
 
   bool _isValidPhone(String phone) {
-    // Require E.164 format: + followed by 7-15 digits
     return RegExp(r'^\+\d{7,15}$').hasMatch(phone);
   }
 }
