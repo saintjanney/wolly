@@ -83,7 +83,7 @@ export default function Dashboard() {
       setRevenueLoading(true);
       const [stats, revenue] = await Promise.all([
         AnalyticsService.getOverviewStats(user.uid, revenueDateFilter),
-        AnalyticsService.getRevenueData(revenueDateFilter, selectedBookId === 'all' ? undefined : selectedBookId),
+        AnalyticsService.getRevenueData(user.uid, revenueDateFilter, selectedBookId === 'all' ? undefined : selectedBookId),
       ]);
       setOverviewStats(stats);
       setRevenueData(revenue);
@@ -99,7 +99,7 @@ export default function Dashboard() {
     if (!user) return;
     try {
       setGeographicLoading(true);
-      const geo = await AnalyticsService.getGeographicData(geographicDateFilter, selectedBookId === 'all' ? undefined : selectedBookId);
+      const geo = await AnalyticsService.getGeographicData(user.uid, geographicDateFilter, selectedBookId === 'all' ? undefined : selectedBookId);
       setGeographicData(geo);
     } catch (error) {
       console.error('Error loading geographic data:', error);
