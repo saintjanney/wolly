@@ -7,10 +7,9 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:provider/provider.dart';
 
 import 'package:wolly_mobile/core/models/reader_settings.dart';
-import 'package:wolly_mobile/core/providers/reader_settings_provider.dart';
+import 'package:wolly_mobile/core/bloc/reader_settings_cubit.dart';
 import 'package:wolly_mobile/core/widgets/reader_settings_sheet.dart';
 import 'package:wolly_mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:wolly_mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
@@ -154,7 +153,7 @@ class _ReadPDFState extends State<ReadPDF> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<ReaderSettingsProvider>().settings;
+    final settings = context.watch<ReaderSettingsCubit>().state;
 
     if (!_loaded && !_hasError) {
       return Scaffold(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:wolly_mobile/core/models/reader_settings.dart';
-import 'package:wolly_mobile/core/providers/reader_settings_provider.dart';
+import 'package:wolly_mobile/core/bloc/reader_settings_cubit.dart';
 
 void showReaderSettingsSheet(BuildContext context) {
   showModalBottomSheet(
@@ -17,8 +17,7 @@ class _ReaderSettingsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<ReaderSettingsProvider>();
-    final settings = provider.settings;
+    final settings = context.watch<ReaderSettingsCubit>().state;
 
     return Container(
       decoration: BoxDecoration(
@@ -76,7 +75,7 @@ class _ReaderSettingsSheet extends StatelessWidget {
                 bg: const Color(0xFFFFFFFF),
                 textColor: const Color(0xFF1A1A1A),
                 isSelected: settings.theme == ReaderTheme.light,
-                onTap: () => context.read<ReaderSettingsProvider>().updateTheme(ReaderTheme.light),
+                onTap: () => context.read<ReaderSettingsCubit>().updateTheme(ReaderTheme.light),
               ),
               const SizedBox(width: 12),
               _ThemeOption(
@@ -84,7 +83,7 @@ class _ReaderSettingsSheet extends StatelessWidget {
                 bg: const Color(0xFFF5E6C8),
                 textColor: const Color(0xFF3B2A1A),
                 isSelected: settings.theme == ReaderTheme.sepia,
-                onTap: () => context.read<ReaderSettingsProvider>().updateTheme(ReaderTheme.sepia),
+                onTap: () => context.read<ReaderSettingsCubit>().updateTheme(ReaderTheme.sepia),
               ),
               const SizedBox(width: 12),
               _ThemeOption(
@@ -92,7 +91,7 @@ class _ReaderSettingsSheet extends StatelessWidget {
                 bg: const Color(0xFF1A1A2E),
                 textColor: const Color(0xFFE8E8E8),
                 isSelected: settings.theme == ReaderTheme.dark,
-                onTap: () => context.read<ReaderSettingsProvider>().updateTheme(ReaderTheme.dark),
+                onTap: () => context.read<ReaderSettingsCubit>().updateTheme(ReaderTheme.dark),
               ),
             ],
           ),
@@ -105,7 +104,7 @@ class _ReaderSettingsSheet extends StatelessWidget {
             children: [
               _IconButton(
                 icon: Icons.text_decrease,
-                onTap: () => context.read<ReaderSettingsProvider>().decreaseFontSize(),
+                onTap: () => context.read<ReaderSettingsCubit>().decreaseFontSize(),
                 textColor: settings.textColor,
                 enabled: settings.fontSize.index > 0,
               ),
@@ -123,7 +122,7 @@ class _ReaderSettingsSheet extends StatelessWidget {
               ),
               _IconButton(
                 icon: Icons.text_increase,
-                onTap: () => context.read<ReaderSettingsProvider>().increaseFontSize(),
+                onTap: () => context.read<ReaderSettingsCubit>().increaseFontSize(),
                 textColor: settings.textColor,
                 enabled: settings.fontSize.index < ReaderFontSize.values.length - 1,
               ),
@@ -143,7 +142,7 @@ class _ReaderSettingsSheet extends StatelessWidget {
                   fontFamily: 'Roboto',
                   isSelected: settings.fontFamily == ReaderFontFamily.sansSerif,
                   textColor: settings.textColor,
-                  onTap: () => context.read<ReaderSettingsProvider>().updateFontFamily(ReaderFontFamily.sansSerif),
+                  onTap: () => context.read<ReaderSettingsCubit>().updateFontFamily(ReaderFontFamily.sansSerif),
                 ),
               ),
               const SizedBox(width: 12),
@@ -154,7 +153,7 @@ class _ReaderSettingsSheet extends StatelessWidget {
                   fontFamily: 'serif',
                   isSelected: settings.fontFamily == ReaderFontFamily.serif,
                   textColor: settings.textColor,
-                  onTap: () => context.read<ReaderSettingsProvider>().updateFontFamily(ReaderFontFamily.serif),
+                  onTap: () => context.read<ReaderSettingsCubit>().updateFontFamily(ReaderFontFamily.serif),
                 ),
               ),
             ],
@@ -172,7 +171,7 @@ class _ReaderSettingsSheet extends StatelessWidget {
                   icon: Icons.format_line_spacing,
                   isSelected: settings.lineHeight == ReaderLineHeight.compact,
                   textColor: settings.textColor,
-                  onTap: () => context.read<ReaderSettingsProvider>().updateLineHeight(ReaderLineHeight.compact),
+                  onTap: () => context.read<ReaderSettingsCubit>().updateLineHeight(ReaderLineHeight.compact),
                 ),
               ),
               const SizedBox(width: 8),
@@ -182,7 +181,7 @@ class _ReaderSettingsSheet extends StatelessWidget {
                   icon: Icons.format_line_spacing,
                   isSelected: settings.lineHeight == ReaderLineHeight.normal,
                   textColor: settings.textColor,
-                  onTap: () => context.read<ReaderSettingsProvider>().updateLineHeight(ReaderLineHeight.normal),
+                  onTap: () => context.read<ReaderSettingsCubit>().updateLineHeight(ReaderLineHeight.normal),
                 ),
               ),
               const SizedBox(width: 8),
@@ -192,7 +191,7 @@ class _ReaderSettingsSheet extends StatelessWidget {
                   icon: Icons.format_line_spacing,
                   isSelected: settings.lineHeight == ReaderLineHeight.relaxed,
                   textColor: settings.textColor,
-                  onTap: () => context.read<ReaderSettingsProvider>().updateLineHeight(ReaderLineHeight.relaxed),
+                  onTap: () => context.read<ReaderSettingsCubit>().updateLineHeight(ReaderLineHeight.relaxed),
                 ),
               ),
             ],

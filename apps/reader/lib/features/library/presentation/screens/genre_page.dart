@@ -1,7 +1,7 @@
 import 'package:flexify/flexify.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:wolly_mobile/Providers/genre_provider.dart';
+import 'package:wolly_mobile/features/genre/data/genre_repository.dart';
 import 'package:wolly_mobile/features/genre/domain/models/genre.dart';
 
 class GenrePage extends StatefulWidget {
@@ -12,7 +12,7 @@ class GenrePage extends StatefulWidget {
 }
 
 class _GenrePageState extends State<GenrePage> {
-  final GenreProvider _genreProvider = GenreProvider();
+  final GenreRepository _genreProvider = GenreRepository();
   bool isLoading = true;
   List<Genre> genres = [];
 
@@ -27,7 +27,7 @@ class _GenrePageState extends State<GenrePage> {
       isLoading = true;
     });
 
-    List<Genre> fetchedGenres = await _genreProvider.fetchAllGenres();
+    List<Genre> fetchedGenres = await _genreProvider.fetchGenres();
     
     setState(() {
       genres = fetchedGenres;

@@ -23,3 +23,18 @@ jobs:
         run: npm run lint
       - name: Build web apps
         run: npm run build
+
+  reader:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        working-directory: apps/reader
+        run: flutter pub get
+      - name: Analyze (fail on errors/warnings)
+        working-directory: apps/reader
+        run: flutter analyze --no-fatal-infos

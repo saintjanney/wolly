@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:wolly_mobile/Providers/library_provider.dart';
+import 'package:wolly_mobile/features/library/data/library_repository.dart';
 import 'package:wolly_mobile/features/library/domain/models/book.dart';
 import 'package:wolly_mobile/features/library/presentation/screens/genre_page.dart';
 import 'package:wolly_mobile/features/store/data/purchase_repository.dart';
@@ -15,7 +15,7 @@ class Library extends StatefulWidget {
 
 class _LibraryState extends State<Library> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final LibraryProvider _libraryProvider = LibraryProvider();
+  final LibraryRepository _libraryProvider = LibraryRepository();
   final PurchaseRepository _purchaseRepo = PurchaseRepository();
 
   List<Book> _allBooks = [];

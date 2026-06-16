@@ -5,10 +5,9 @@ import 'package:epub_view/src/data/models/chapter_view_value.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:internet_file/internet_file.dart';
-import 'package:provider/provider.dart';
 
 import 'package:wolly_mobile/core/models/reader_settings.dart';
-import 'package:wolly_mobile/core/providers/reader_settings_provider.dart';
+import 'package:wolly_mobile/core/bloc/reader_settings_cubit.dart';
 import 'package:wolly_mobile/core/widgets/reader_settings_sheet.dart';
 import 'package:wolly_mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:wolly_mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
@@ -150,7 +149,7 @@ class _ReadEpubState extends State<ReadEpub> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<ReaderSettingsProvider>().settings;
+    final settings = context.watch<ReaderSettingsCubit>().state;
 
     if (_isLoading) {
       return Scaffold(

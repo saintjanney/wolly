@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:wolly_mobile/Providers/library_provider.dart';
+import 'package:wolly_mobile/features/library/data/library_repository.dart';
 import 'package:wolly_mobile/features/library/domain/models/book.dart';
 import 'package:wolly_mobile/features/genre/domain/models/genre.dart';
 
@@ -13,7 +13,7 @@ class GenreBooks extends StatefulWidget {
 }
 
 class _GenreBooksState extends State<GenreBooks> {
-  final LibraryProvider _libraryProvider = LibraryProvider();
+  final LibraryRepository _libraryProvider = LibraryRepository();
   List<Book> books = [];
   bool isLoading = true;
 

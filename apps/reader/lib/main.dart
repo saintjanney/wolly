@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:provider/provider.dart';
 import 'package:wolly_mobile/core/theme/app_theme.dart';
 import 'package:wolly_mobile/features/authentication/data/auth_repository.dart';
 import 'package:wolly_mobile/features/authentication/presentation/bloc/auth_bloc.dart';
@@ -16,8 +15,7 @@ import 'package:wolly_mobile/features/library/presentation/screens/file_download
 import 'package:wolly_mobile/features/library/presentation/screens/genre_books.dart';
 import 'package:wolly_mobile/features/library/presentation/screens/genre_page.dart';
 import 'package:wolly_mobile/features/genre/domain/models/genre.dart';
-import 'package:wolly_mobile/providers/mock_profile_provider.dart';
-import 'package:wolly_mobile/core/providers/reader_settings_provider.dart';
+import 'package:wolly_mobile/core/bloc/reader_settings_cubit.dart';
 import 'package:wolly_mobile/core/config/app_config.dart';
 import 'package:wolly_mobile/features/store/presentation/screens/book_detail_screen.dart';
 import 'package:wolly_mobile/features/library/presentation/screens/search_screen.dart';
@@ -26,7 +24,7 @@ import 'package:wolly_mobile/features/library/presentation/screens/library.dart'
 import 'package:wolly_mobile/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:wolly_mobile/core/widgets/auth_gate.dart';
 import 'package:wolly_mobile/Screens/login/otp_verify.dart';
-import 'package:wolly_mobile/Screens/profile/profile_screen.dart';
+import 'package:wolly_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:wolly_mobile/core/widgets/main_navigation.dart';
 import 'package:wolly_mobile/features/authentication/presentation/screens/otp_login_screen.dart';
 import 'firebase_options.dart';
@@ -53,9 +51,8 @@ Future<void> main() async {
   final genreRepository = GenreRepository();
 
   runApp(
-    MultiProvider(
+    MultiBlocProvider(
       providers: [
-        // BLoC providers
         BlocProvider<AuthBloc>(
           create: (context) => AuthBloc(authRepository: authRepository),
         ),
@@ -66,12 +63,8 @@ Future<void> main() async {
         BlocProvider<GenreBloc>(
           create: (context) => GenreBloc(genreRepository: genreRepository),
         ),
-        // ChangeNotifier providers
-        ChangeNotifierProvider<MockProfileProvider>(
-          create: (context) => MockProfileProvider(),
-        ),
-        ChangeNotifierProvider<ReaderSettingsProvider>(
-          create: (context) => ReaderSettingsProvider(),
+        BlocProvider<ReaderSettingsCubit>(
+          create: (context) => ReaderSettingsCubit(),
         ),
       ],
       child: const MyApp(),

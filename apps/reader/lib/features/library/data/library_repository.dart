@@ -1,32 +1,25 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 import 'package:wolly_mobile/features/library/domain/models/book.dart';
 
-class LibraryProvider with ChangeNotifier {
+/// Data access for the book catalog (the `epubs` collection). Plain repository
+/// — screens drive UI state through BLoC/Cubit or local widget state, not this.
+class LibraryRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-
-  String _getFileTypeFromUrl(String url) {
-    print(url);
-    if (url.contains('.pdf')) {
-      print('pdf');
-      return 'pdf';
-    } else if (url.contains('.epub')) {
-      print('epub');
-      return 'epub';
-    } else {
-      print('uknown');
-      return 'unknown';
-    }
+  String _fileTypeFor(Map<String, dynamic> data) {
+    final explicit = data['fileType'] as String?;
+    if (explicit == 'pdf' || explicit == 'epub') return explicit!;
+    final url = (data['url'] ?? '') as String;
+    if (url.contains('.pdf')) return 'pdf';
+    if (url.contains('.epub')) return 'epub';
+    return 'epub';
   }
 
   Future<List<Book>> fetchAllBooks() async {
-    List<Book> books = [];
+    final List<Book> books = [];
     try {
-      QuerySnapshot<Map<String, dynamic>> querySnapshot =
-          await _firestore.collection('epubs').get();
-
-      for (var doc in querySnapshot.docs) {
+      final querySnapshot = await _firestore.collection('epubs').get();
+      for (final doc in querySnapshot.docs) {
         final data = doc.data();
         if (data['isPublished'] == false) continue;
         books.add(
@@ -36,7 +29,7 @@ class LibraryProvider with ChangeNotifier {
             title: data['title'] ?? '',
             genre: data['genre'] ?? '',
             downloadUrl: data['url'] ?? '',
-            fileType: _getFileTypeFromUrl(data['url'] ?? ''),
+            fileType: _fileTypeFor(data),
             isPublished: data['isPublished'] ?? false,
             coverUrl: data['coverUrl'],
             author: data['author'],
@@ -48,9 +41,7 @@ class LibraryProvider with ChangeNotifier {
         );
       }
       return books;
-
     } catch (e) {
-      print(e);
       return books;
     }
   }
