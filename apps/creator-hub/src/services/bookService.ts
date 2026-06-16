@@ -17,7 +17,9 @@ import {
   getDownloadURL 
 } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
+import { COLLECTIONS, type FileType } from '@wolly/schema';
 import { PlatformBook, BookCreation } from '@/types/book';
+import { GenreService } from './genreService';
 
 // Mock data for demonstration
 const mockBooks: PlatformBook[] = [
@@ -265,9 +267,17 @@ export class BookService {
     try {
       // 1. Upload files to Firebase Storage
       // Generate book ID first so we can use it in storage paths
-      const bookId = doc(collection(db, 'books')).id;
+      const bookId = doc(collection(db, COLLECTIONS.EPUBS)).id;
       let coverUrl: string | undefined;
       let manuscriptUrl: string | undefined;
+
+      // Derive the reader's `fileType` from the manuscript file extension.
+      const manuscriptName = (bookCreation.manuscriptFile?.name || '').toLowerCase();
+      const fileType: FileType = manuscriptName.endsWith('.pdf') ? 'pdf' : 'epub';
+
+      // Resolve the first selected category to a `genres` document id so the book
+      // appears under the right genre in the reader (creates the genre if needed).
+      const genreId = await GenreService.ensureGenreId(bookCreation.categories?.[0]);
 
       console.log('📤 Starting file uploads for book:', bookId);
       
@@ -348,6 +358,10 @@ export class BookService {
         language: bookCreation.language || 'English',
         title: bookCreation.title || '',
         authorName: bookCreation.authorName || '',
+        // Reader contract: the reader reads `author`, `fileType` and `rating`.
+        author: bookCreation.authorName || '',
+        fileType,
+        rating: 0,
         description: bookCreation.description || '',
         isPartOfSeries: bookCreation.isPartOfSeries || false,
         ownsCopyright: bookCreation.ownsCopyright !== undefined ? bookCreation.ownsCopyright : true,
@@ -477,20 +491,29 @@ export class BookService {
       if (bookCreation.price !== undefined && bookCreation.price !== null) {
         bookDataRaw.price = bookCreation.price;
       }
+
+      // Reader contract: `genre` is a `genres` document id (omitted if unresolved).
+      if (genreId) {
+        bookDataRaw.genre = genreId;
+      }
       
       if (bookCreation.wollyRevenueShare !== undefined && bookCreation.wollyRevenueShare !== null) {
         bookDataRaw.wollyRevenueShare = bookCreation.wollyRevenueShare;
       }
 
-      // Add file URLs - only include if they were successfully uploaded
+      // Add file URLs - only include if they were successfully uploaded.
+      // The reader reads `coverUrl` / `url`; we keep the hub's own
+      // `coverImageUrl` / `manuscriptUrl` alongside them.
       if (coverUrl) {
         bookDataRaw.coverImageUrl = coverUrl;
-        console.log('📝 Adding coverImageUrl to book document');
+        bookDataRaw.coverUrl = coverUrl;
+        console.log('📝 Adding coverImageUrl/coverUrl to book document');
       }
-      
+
       if (manuscriptUrl) {
         bookDataRaw.manuscriptUrl = manuscriptUrl;
-        console.log('📝 Adding manuscriptUrl to book document');
+        bookDataRaw.url = manuscriptUrl;
+        console.log('📝 Adding manuscriptUrl/url to book document');
       }
 
       // Remove all undefined and null values recursively
@@ -527,7 +550,7 @@ export class BookService {
       }
 
       // Save to Firestore
-      await setDoc(doc(db, 'books', bookId), finalBookData);
+      await setDoc(doc(db, COLLECTIONS.EPUBS, bookId), finalBookData);
       console.log('✅ Book created successfully in Firestore:', bookId);
 
       return bookId;
@@ -547,7 +570,7 @@ export class BookService {
       }
 
       const q = query(
-        collection(db, 'books'),
+        collection(db, COLLECTIONS.EPUBS),
         where('ownerUserId', '==', userId),
         orderBy('updatedAt', 'desc')
       );
@@ -567,7 +590,7 @@ export class BookService {
 
   static async updateBookPublishStatus(bookId: string, isPublished: boolean): Promise<void> {
     try {
-      await updateDoc(doc(db, 'books', bookId), {
+      await updateDoc(doc(db, COLLECTIONS.EPUBS, bookId), {
         isPublished,
         updatedAt: serverTimestamp(),
       });
@@ -579,20 +602,40 @@ export class BookService {
 
   static async updateBook(bookId: string, updates: Partial<PlatformBook>): Promise<void> {
     try {
-      const bookRef = doc(db, 'books', bookId);
+      const bookRef = doc(db, COLLECTIONS.EPUBS, bookId);
       const cleanedUpdates: Record<string, unknown> = {};
-      
-      // Remove undefined values and convert dates
+
+      // Remove undefined/null values and drop non-serializable values (e.g. the
+      // File objects carried on BookCreation, which Firestore cannot store).
       for (const [key, value] of Object.entries(updates)) {
-        if (value !== undefined && value !== null) {
-          if (value instanceof Date) {
-            cleanedUpdates[key] = value;
-          } else {
-            cleanedUpdates[key] = value;
-          }
-        }
+        if (value === undefined || value === null) continue;
+        if (typeof File !== 'undefined' && value instanceof File) continue;
+        if (typeof Blob !== 'undefined' && value instanceof Blob) continue;
+        cleanedUpdates[key] = value;
       }
-      
+
+      // Keep the reader-contract aliases in sync with the hub's own fields.
+      const updatesRecord = updates as Record<string, unknown>;
+      if (typeof updatesRecord.authorName === 'string') {
+        cleanedUpdates.author = updatesRecord.authorName;
+      }
+      if (typeof updatesRecord.coverImageUrl === 'string') {
+        cleanedUpdates.coverUrl = updatesRecord.coverImageUrl;
+      }
+      if (typeof updatesRecord.manuscriptUrl === 'string') {
+        cleanedUpdates.url = updatesRecord.manuscriptUrl;
+      }
+      if (typeof updatesRecord.averageRating === 'number') {
+        cleanedUpdates.rating = updatesRecord.averageRating;
+      }
+      const firstCategory = Array.isArray(updatesRecord.categories)
+        ? (updatesRecord.categories as unknown[])[0]
+        : undefined;
+      if (typeof firstCategory === 'string') {
+        const genreId = await GenreService.ensureGenreId(firstCategory);
+        if (genreId) cleanedUpdates.genre = genreId;
+      }
+
       cleanedUpdates.updatedAt = serverTimestamp();
       cleanedUpdates.lastModifiedAt = serverTimestamp();
       
@@ -606,7 +649,7 @@ export class BookService {
 
   static async deleteBook(bookId: string): Promise<void> {
     try {
-      await deleteDoc(doc(db, 'books', bookId));
+      await deleteDoc(doc(db, COLLECTIONS.EPUBS, bookId));
       console.log(`Book ${bookId} deleted successfully`);
     } catch (error) {
       console.error('Error deleting book:', error);
@@ -628,7 +671,7 @@ export class BookService {
       cleanedUpdates.lastModifiedAt = serverTimestamp();
       
       bookIds.forEach((bookId) => {
-        const bookRef = doc(db, 'books', bookId);
+        const bookRef = doc(db, COLLECTIONS.EPUBS, bookId);
         batch.update(bookRef, cleanedUpdates);
       });
       
@@ -652,7 +695,7 @@ export class BookService {
   ): Promise<PlatformBook[]> {
     try {
       let q = query(
-        collection(db, 'books'),
+        collection(db, COLLECTIONS.EPUBS),
         where('ownerUserId', '==', userId)
       );
 

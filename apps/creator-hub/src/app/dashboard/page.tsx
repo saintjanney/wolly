@@ -247,7 +247,7 @@ export default function Dashboard() {
                 />
                 <YAxis />
                 <Tooltip
-                  formatter={(value: number | undefined) => value !== undefined ? [formatCurrency(value, userCurrency, { decimals: 2 }), 'Revenue'] : ['', '']}
+                  formatter={(value) => [formatCurrency(Number(value), userCurrency, { decimals: 2 }), 'Revenue']}
                   labelFormatter={(label) => {
                     const date = new Date(label);
                     return date.toLocaleDateString();
@@ -309,7 +309,7 @@ export default function Dashboard() {
                   tick={{ fontSize: 13 }}
                 />
                 <Tooltip
-                  formatter={(value: number | undefined) => value !== undefined ? [value.toLocaleString(), 'Sales'] : ['', '']}
+                  formatter={(value) => [Number(value).toLocaleString(), 'Sales']}
                 />
                 <Legend />
                 <Bar dataKey="sales" fill="#8b5cf6" name="Sales" radius={[0, 8, 8, 0]} />

@@ -5,7 +5,9 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   images: {
     unoptimized: true
-  }
+  },
+  // Consume the shared canonical schema package directly from source.
+  transpilePackages: ['@wolly/schema']
 };
 
 export default nextConfig;

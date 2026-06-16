@@ -10,6 +10,7 @@
     "deploy": "next build && firebase deploy --only hosting"
   },
   "dependencies": {
+    "@wolly/schema": "*",
     "@headlessui/react": "^2.2.9",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.2",

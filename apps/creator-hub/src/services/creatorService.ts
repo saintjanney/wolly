@@ -8,67 +8,16 @@ import {
 import { db } from '@/lib/firebase';
 import { User } from '@/types/book';
 import { CreatorOnboarding, Genre } from '@/types/creator';
-
-// Mock genres data - in production this would come from Firestore
-const mockGenres: Genre[] = [
-  { id: '1', name: 'Fiction', slug: 'fiction', description: 'Imaginative storytelling', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '2', name: 'Non-Fiction', slug: 'non-fiction', description: 'Factual and educational content', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '3', name: 'Romance', slug: 'romance', description: 'Love stories and relationships', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '4', name: 'Mystery & Thriller', slug: 'mystery-thriller', description: 'Suspenseful and mysterious stories', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '5', name: 'Science Fiction', slug: 'science-fiction', description: 'Futuristic and scientific themes', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '6', name: 'Fantasy', slug: 'fantasy', description: 'Magical and supernatural elements', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '7', name: 'Horror', slug: 'horror', description: 'Scary and suspenseful content', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '8', name: 'Biography & Memoir', slug: 'biography-memoir', description: 'Personal life stories', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '9', name: 'Self-Help', slug: 'self-help', description: 'Personal development and improvement', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '10', name: 'Business & Economics', slug: 'business-economics', description: 'Professional and economic content', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '11', name: 'History', slug: 'history', description: 'Historical events and periods', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '12', name: 'Science & Technology', slug: 'science-technology', description: 'Scientific and technological content', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '13', name: 'Health & Fitness', slug: 'health-fitness', description: 'Wellness and physical health', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '14', name: 'Travel', slug: 'travel', description: 'Travel guides and experiences', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '15', name: 'Cooking', slug: 'cooking', description: 'Recipes and culinary content', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '16', name: 'Poetry', slug: 'poetry', description: 'Poetic and lyrical content', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '17', name: 'Drama', slug: 'drama', description: 'Dramatic and theatrical content', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '18', name: 'Comedy', slug: 'comedy', description: 'Humorous and entertaining content', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '19', name: 'Adventure', slug: 'adventure', description: 'Exciting and adventurous stories', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-  { id: '20', name: 'Educational', slug: 'educational', description: 'Learning and instructional content', isActive: true, bookCount: 0, createdAt: new Date(), updatedAt: new Date() },
-];
+import { GenreService } from './genreService';
 
 export class CreatorService {
+  /** Genres now come from the real `genres` Firestore collection. */
   static async getGenres(): Promise<Genre[]> {
-    try {
-      // For now, return mock data
-      // Later: const querySnapshot = await getDocs(collection(db, 'genres'));
-      // return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Genre));
-      
-      return mockGenres;
-    } catch (error) {
-      console.error('Error fetching genres:', error);
-      throw error;
-    }
+    return GenreService.getGenres();
   }
 
   static async addCustomGenre(genreName: string): Promise<Genre> {
-    try {
-      const newGenre: Genre = {
-        id: `custom-${Date.now()}`,
-        name: genreName,
-        slug: genreName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        description: `Custom genre: ${genreName}`,
-        isActive: true,
-        bookCount: 0,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-
-      // For now, just return the new genre
-      // Later: const docRef = await addDoc(collection(db, 'genres'), newGenre);
-      // return { ...newGenre, id: docRef.id };
-
-      return newGenre;
-    } catch (error) {
-      console.error('Error adding custom genre:', error);
-      throw error;
-    }
+    return GenreService.addCustomGenre(genreName);
   }
 
   static async completeOnboarding(
