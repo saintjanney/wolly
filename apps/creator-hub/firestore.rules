@@ -1,0 +1,106 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns a resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Countries collection - read-only for authenticated users
+    match /countries/{countryId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only admins can modify via console/scripts
+    }
+    
+    // Payment methods collection - read-only for authenticated users
+    // Allow write for migrations (can be restricted after migration is complete)
+    match /payment_methods/{methodId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated(); // For migration script
+    }
+    
+    // Payment schedules collection - read-only for authenticated users
+    // Allow write for migrations (can be restricted after migration is complete)
+    match /payment_schedules/{scheduleId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated(); // For migration script
+    }
+    
+    // Supported currencies - read-only for authenticated users
+    match /supported_currencies/{currencyId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only admins can modify
+    }
+    
+    // Users collection - users can read/write their own data
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || resource.data.publicProfile == true);
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId);
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // Books collection - users can manage their own books, published books are readable by all
+    match /books/{bookId} {
+      // Anyone can read published books
+      allow read: if resource.data.isPublished == true;
+      // Owners can read their own books (published or not)
+      allow read: if isAuthenticated() && isOwner(resource.data.ownerUserId);
+      // Only owners can create/update/delete their books
+      allow create: if isAuthenticated() && request.resource.data.ownerUserId == request.auth.uid;
+      allow update: if isAuthenticated() && isOwner(resource.data.ownerUserId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.ownerUserId);
+    }
+    
+    // Analytics collection - only book owners can access
+    match /analytics/{analyticsId} {
+      allow read, write: if isAuthenticated() && isOwner(resource.data.ownerUserId);
+    }
+    
+    // Reviews collection - users can read all reviews, create their own
+    match /reviews/{reviewId} {
+      allow read: if true; // All reviews are public
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && isOwner(resource.data.userId);
+    }
+    
+    // Payments collection - users can only access their own payments
+    match /payments/{paymentId} {
+      allow read, write: if isAuthenticated() && isOwner(resource.data.userId);
+    }
+    
+    // Notifications collection - users can only access their own notifications
+    match /notifications/{notificationId} {
+      allow read, write: if isAuthenticated() && isOwner(resource.data.userId);
+    }
+    
+    // Categories collection - read-only for authenticated users
+    match /categories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only admins can modify
+    }
+    
+    // Publishing queue - only book owners can access
+    match /publishing_queue/{queueId} {
+      allow read, write: if isAuthenticated() && isOwner(resource.data.ownerUserId);
+    }
+    
+    // Content files - only book owners can access
+    match /content_files/{fileId} {
+      allow read, write: if isAuthenticated() && isOwner(resource.data.ownerUserId);
+    }
+    
+    // Book drafts - only book owners can access
+    match /book_drafts/{draftId} {
+      allow read, write: if isAuthenticated() && isOwner(resource.data.ownerUserId);
+    }
+  }
+}
+
