@@ -16,7 +16,6 @@ import 'package:wolly_mobile/features/library/presentation/screens/genre_books.d
 import 'package:wolly_mobile/features/library/presentation/screens/genre_page.dart';
 import 'package:wolly_mobile/features/genre/domain/models/genre.dart';
 import 'package:wolly_mobile/core/bloc/reader_settings_cubit.dart';
-import 'package:wolly_mobile/core/config/app_config.dart';
 import 'package:wolly_mobile/features/store/presentation/screens/book_detail_screen.dart';
 import 'package:wolly_mobile/features/library/presentation/screens/search_screen.dart';
 import 'package:wolly_mobile/features/library/domain/models/book.dart';
@@ -25,7 +24,6 @@ import 'package:wolly_mobile/features/onboarding/presentation/screens/onboarding
 import 'package:wolly_mobile/core/widgets/auth_gate.dart';
 import 'package:wolly_mobile/Screens/login/otp_verify.dart';
 import 'package:wolly_mobile/features/profile/presentation/screens/profile_screen.dart';
-import 'package:wolly_mobile/core/widgets/main_navigation.dart';
 import 'package:wolly_mobile/features/authentication/presentation/screens/otp_login_screen.dart';
 import 'firebase_options.dart';
 import 'package:flexify/flexify.dart';
