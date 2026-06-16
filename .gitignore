@@ -21,6 +21,12 @@ build/
 firebase-debug.log
 firestore-debug.log
 
+# Credentials — NEVER commit service-account keys
+*serviceaccount*.json
+*firebase-adminsdk*.json
+service-account*.json
+sa.json
+
 # Misc
 .DS_Store
 *.pem

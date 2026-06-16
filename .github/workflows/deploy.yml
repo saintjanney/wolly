@@ -1,0 +1,149 @@
+name: Deploy
+
+# Deploys every Wolly surface.
+#   push to develop  -> MOCK environment  (web: Hosting preview channel "mock", Android: "qa" testers)
+#   push to main     -> PROD environment  (web: Hosting live,                 Android: "production" testers)
+#
+# Required GitHub secret:
+#   FIREBASE_SERVICE_ACCOUNT  – the full Firebase Admin SDK service-account JSON.
+#     The service account needs these IAM roles on project wolly-1133d:
+#       • Firebase Hosting Admin
+#       • Firebase App Distribution Admin
+#       • (and API access enabled for Firebase Management)
+#
+# Prerequisites in Firebase (one-time):
+#   • Hosting sites matching the targets in .firebaserc
+#     (wolly-reader, wolly-creator-hub, wolly-backoffice) created and applied.
+#   • App Distribution tester groups named "qa" and "production".
+
+on:
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FIREBASE_PROJECT: wolly-1133d
+  ANDROID_APP_ID: "1:550264739666:android:8d14c44e68dc0795d8cc8b"
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      hosting_channel: ${{ steps.env.outputs.hosting_channel }}
+      distribution_group: ${{ steps.env.outputs.distribution_group }}
+    steps:
+      - id: env
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "environment=prod"           >> "$GITHUB_OUTPUT"
+            echo "hosting_channel=live"        >> "$GITHUB_OUTPUT"
+            echo "distribution_group=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=mock"            >> "$GITHUB_OUTPUT"
+            echo "hosting_channel=mock"        >> "$GITHUB_OUTPUT"
+            echo "distribution_group=qa"       >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── Web surfaces: creator-hub + backoffice (Next.js static export) ──────────
+  web:
+    needs: config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Turbo builds every JS workspace that defines a build task
+      # (creator-hub + backoffice -> apps/*/out).
+      - run: npm run build
+
+      - name: Write service account
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+
+      - name: Deploy creator-hub + backoffice
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          if [ "${{ needs.config.outputs.hosting_channel }}" = "live" ]; then
+            npx firebase-tools deploy \
+              --only hosting:creator-hub,hosting:backoffice \
+              --project "$FIREBASE_PROJECT" --non-interactive
+          else
+            npx firebase-tools hosting:channel:deploy "${{ needs.config.outputs.hosting_channel }}" \
+              --only creator-hub,backoffice \
+              --project "$FIREBASE_PROJECT" --expires 30d --non-interactive
+          fi
+
+  # ── Mobile + reader web: Flutter ────────────────────────────────────────────
+  reader:
+    needs: config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools@14
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: apps/reader
+        run: flutter pub get
+
+      - name: Build reader web
+        working-directory: apps/reader
+        run: flutter build web --release
+
+      - name: Build Android APK
+        working-directory: apps/reader
+        run: flutter build apk --release
+
+      - name: Write service account
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+
+      - name: Deploy reader web
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          if [ "${{ needs.config.outputs.hosting_channel }}" = "live" ]; then
+            firebase deploy --only hosting:reader \
+              --project "$FIREBASE_PROJECT" --non-interactive
+          else
+            firebase hosting:channel:deploy "${{ needs.config.outputs.hosting_channel }}" \
+              --only reader \
+              --project "$FIREBASE_PROJECT" --expires 30d --non-interactive
+          fi
+
+      - name: Distribute Android APK to testers
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          firebase appdistribution:distribute \
+            apps/reader/build/app/outputs/flutter-apk/app-release.apk \
+            --app "$ANDROID_APP_ID" \
+            --groups "${{ needs.config.outputs.distribution_group }}" \
+            --release-notes "${{ needs.config.outputs.environment }} build ${{ github.sha }}" \
+            --project "$FIREBASE_PROJECT"
