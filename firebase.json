@@ -1,0 +1,31 @@
+{
+  "firestore": {
+    "rules": "packages/firebase-config/firestore.rules",
+    "indexes": "packages/firebase-config/firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "packages/firebase-config/storage.rules"
+  },
+  "hosting": [
+    {
+      "target": "reader",
+      "public": "apps/reader/build/web",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "cleanUrls": true,
+      "trailingSlash": false
+    },
+    {
+      "target": "creator-hub",
+      "public": "apps/creator-hub/out",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    },
+    {
+      "target": "backoffice",
+      "public": "apps/backoffice/out",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    }
+  ]
+}

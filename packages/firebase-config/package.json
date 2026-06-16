@@ -1,0 +1,11 @@
+{
+  "name": "@wolly/firebase-config",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Canonical Firebase security rules and Firestore indexes shared across the Wolly platform.",
+  "files": [
+    "firestore.rules",
+    "storage.rules",
+    "firestore.indexes.json"
+  ]
+}
