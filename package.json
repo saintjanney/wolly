@@ -5,6 +5,7 @@
   "description": "Wolly — book publishing & reading platform (monorepo)",
   "workspaces": [
     "apps/creator-hub",
+    "apps/backoffice",
     "packages/*"
   ],
   "scripts": {
