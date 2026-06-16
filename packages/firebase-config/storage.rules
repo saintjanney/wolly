@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Books collection - users can upload/manage their own book files
+    match /books/{userId}/{bookId}/{fileName} {
+      // Allow read if user owns the file or book is published
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        // Future: allow public read for published books
+        false
+      );
+      
+      // Allow write (upload/delete) only if user owns the path
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 50 * 1024 * 1024  // 50MB limit
+        && request.resource.contentType.matches('image/.*|application/pdf|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      
+      // Allow delete only if user owns the file
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Future: User profile images
+    match /users/{userId}/profile/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024  // 5MB limit
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+
+
+

@@ -1,0 +1,25 @@
+{
+  "name": "wolly-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Wolly — book publishing & reading platform (monorepo)",
+  "workspaces": [
+    "apps/creator-hub",
+    "apps/backoffice",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "deploy": "turbo run build && firebase deploy"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0"
+  },
+  "packageManager": "npm@10.9.7",
+  "engines": {
+    "node": ">=18"
+  }
+}

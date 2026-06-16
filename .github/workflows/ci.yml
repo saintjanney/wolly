@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Typecheck shared schema
+        run: npx tsc --noEmit -p packages/schema/tsconfig.json
+      # Advisory until the apps' pre-existing lint debt is cleared; then drop
+      # continue-on-error to make it blocking.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+      - name: Build web apps
+        run: npm run build
+
+  reader:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        working-directory: apps/reader
+        run: flutter pub get
+      # Advisory until the reader's pre-existing analyzer debt is cleared; then
+      # drop continue-on-error to make it blocking.
+      - name: Analyze
+        working-directory: apps/reader
+        run: flutter analyze --no-fatal-infos
+        continue-on-error: true
