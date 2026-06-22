@@ -37,6 +37,6 @@ class PaystackService {
 
   static String generateReference(String bookId) {
     final ts = DateTime.now().millisecondsSinceEpoch;
-    return 'WOLLY_${bookId}_\$ts';
+    return 'WOLLY_${bookId}_$ts';
   }
 }
