@@ -6,7 +6,7 @@ surfaces plus the shared contracts that keep them in sync.
 ```
 wolly/
 ├── apps/
-│   ├── reader/         # Flutter mobile/web app — readers browse & read books (BLoC)
+│   ├── reader/         # Flutter mobile app — readers browse & read books (BLoC)
 │   ├── creator-hub/    # Next.js web app — authors create, publish & track books
 │   └── backoffice/     # Next.js web app — staff moderation / publishing workflow (Phase 5)
 ├── packages/
@@ -53,7 +53,9 @@ shape the reader expects, so they appear in the reader immediately.
 
 ## Deployment
 
-Hosting uses Firebase multi-site targets (`reader`, `creator-hub`, `backoffice`).
-The site IDs in `.firebaserc` (`wolly-reader`, `wolly-creator-hub`, `wolly-backoffice`)
-are placeholders — create the matching Hosting sites in the Firebase console (or
-adjust the IDs) before the first `firebase deploy`.
+CI (`.github/workflows/deploy.yml`) deploys on push: `develop` → mock, `main` → prod.
+
+- **Web** (`creator-hub`, `backoffice`) deploy to Firebase Hosting multi-site
+  targets (`wolly-creator-hub`, `wolly-backoffice` in `.firebaserc`).
+- **Reader** is a **mobile app only** — it ships as an Android APK via Firebase
+  App Distribution (`qa` / `production` tester groups). It has no web Hosting site.
