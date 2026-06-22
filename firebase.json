@@ -8,14 +8,6 @@
   },
   "hosting": [
     {
-      "target": "reader",
-      "public": "apps/reader/build/web",
-      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-      "rewrites": [{ "source": "**", "destination": "/index.html" }],
-      "cleanUrls": true,
-      "trailingSlash": false
-    },
-    {
       "target": "creator-hub",
       "public": "apps/creator-hub/out",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],

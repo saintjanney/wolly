@@ -5,7 +5,6 @@
   "targets": {
     "wolly-1133d": {
       "hosting": {
-        "reader": ["wolly-reader"],
         "creator-hub": ["wolly-creator-hub"],
         "backoffice": ["wolly-backoffice"]
       }
