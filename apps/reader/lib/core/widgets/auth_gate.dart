@@ -88,7 +88,7 @@ class _OnboardingCheckState extends State<_OnboardingCheck> {
       final data = doc.data();
       final prefs = data?['genre_prefs'];
       final completed = data?['onboardingCompleted'] == true;
-      final hasPrefs = prefs is List && (prefs as List).isNotEmpty;
+      final hasPrefs = prefs is List && prefs.isNotEmpty;
       setState(() {
         _needsOnboarding = !completed && !hasPrefs;
         _checking = false;
