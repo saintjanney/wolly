@@ -14,7 +14,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import toast from 'react-hot-toast';
 import { Payment } from '@/types/book';
-import { generateMockPayoutData, calculatePayoutStats, getBookTitle } from '@/utils/mockPayoutData';
+import { PayoutService, calculatePayoutStats } from '@/services/payoutService';
 import { getNextPayoutDate, formatDate, formatCurrency, getPayoutStatusColor, getPaymentTypeLabel, getDaysUntil, formatDateRange } from '@/utils/payoutUtils';
 import {
   UserCircleIcon,
@@ -207,12 +207,12 @@ export default function SettingsPage() {
         timeFormat: data.preferences?.timeFormat || data.timeFormat || '12h',
       });
 
-      // Load payout data
+      // Load payout data (aggregated from real purchases)
       const userCurrency = data.currency || user.currency || 'GHS';
-      const mockPayouts = generateMockPayoutData(user.uid, userCurrency);
-      setPayoutHistory(mockPayouts);
-      
-      const stats = calculatePayoutStats(mockPayouts);
+      const payouts = await PayoutService.getPayoutHistory(user.uid, userCurrency);
+      setPayoutHistory(payouts);
+
+      const stats = calculatePayoutStats(payouts);
       const nextPayoutDate = getNextPayoutDate();
       
       setPayoutStats({
@@ -1301,15 +1301,6 @@ export default function SettingsPage() {
                                 {formatCurrency(selectedPayout.salesData.netAmount, selectedPayout.currency)}
                               </span>
                             </div>
-                          </div>
-                        </div>
-
-                        {/* Book Information */}
-                        <div className="border-t border-gray-200 pt-6">
-                          <h4 className="text-lg font-semibold text-gray-900 mb-4">Book Information</h4>
-                          <div className="bg-blue-50 rounded-lg p-4">
-                            <p className="font-medium text-blue-900">{getBookTitle(selectedPayout.bookId)}</p>
-                            <p className="text-sm text-blue-700 mt-1">Book ID: {selectedPayout.bookId}</p>
                           </div>
                         </div>
 
