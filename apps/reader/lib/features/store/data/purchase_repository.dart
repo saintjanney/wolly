@@ -1,3 +1,5 @@
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -33,6 +35,10 @@ class PurchaseRepository {
     final uid = _userId;
     if (uid == null) return;
 
+    // Buyer's region from the device locale (e.g. 'GH', 'US') — powers the
+    // creator dashboard's geographic analytics.
+    final countryCode = PlatformDispatcher.instance.locale.countryCode;
+
     await _firestore
         .collection('purchases')
         .doc('${uid}_$bookId')
@@ -43,6 +49,7 @@ class PurchaseRepository {
       'reference': reference,
       'amountInPesewas': amountInPesewas,
       'currency': 'GHS',
+      if (countryCode != null && countryCode.isNotEmpty) 'countryCode': countryCode,
       'purchasedAt': Timestamp.now(),
     });
   }
