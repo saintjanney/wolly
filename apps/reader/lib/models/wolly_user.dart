@@ -23,14 +23,19 @@ class WollyUser {
       required this.gender});
 
   factory WollyUser.fromMap(Map<String, dynamic> map) {
+    // Read either the reader's snake_case keys or the creator-hub's camelCase
+    // keys, so a profile created by either app renders correctly.
     return WollyUser(
-      firstName: map['first_name'],
-      lastName: map['last_name'],
+      firstName: map['first_name'] ?? map['firstName'],
+      lastName: map['last_name'] ?? map['lastName'],
       persona: map['persona'],
-      birthday: map['dob'],
-      contentPreference: map['content_preferences'],
-      phoneNumber: map['phone_number'],
-      photoUrl: map['photoUrl'],
+      // `dateOfBirth` may be a Timestamp (creator-hub); only use it as a
+      // fallback when it's a plain string, to avoid a type error.
+      birthday: map['dob'] ?? (map['dateOfBirth'] is String ? map['dateOfBirth'] : null),
+      contentPreference:
+          map['content_preferences'] ?? map['contentPreferences'] ?? <dynamic>[],
+      phoneNumber: map['phone_number'] ?? map['phoneNumber'],
+      photoUrl: map['photoUrl'] ?? map['photoURL'],
       email: map['email'],
       gender: map['gender'],
     );
