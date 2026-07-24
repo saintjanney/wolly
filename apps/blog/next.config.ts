@@ -1,6 +1,19 @@
+import path from 'node:path';
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  // Standalone output traces the exact files this app needs and bundles a
+  // minimal node_modules alongside a server.js. That means NO npm install
+  // happens at deploy time, which is the whole point: the previous approach
+  // (firebase-tools' webframeworks backend) synthesised a package.json that
+  // could not stay in sync with a workspace lockfile, and it is untested past
+  // Next 15.0 while we are pinned to 15.5.21 for CVE-2025-66478.
+  output: 'standalone',
+
+  // Tracing must start at the monorepo root or workspace dependencies,
+  // including @wolly/schema, are missed.
+  outputFileTracingRoot: path.join(__dirname, '../../'),
+
   // Deliberately NOT `output: 'export'`, unlike creator-hub and backoffice.
   //
   // This surface is read by logged-out humans and by search-engine crawlers,

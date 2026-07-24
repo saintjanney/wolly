@@ -4,7 +4,7 @@ name: Deploy
 #   push to develop  -> MOCK environment  (web: Hosting preview channel "mock", Android: "qa" testers)
 #   push to main     -> PROD environment  (web: Hosting live,                 Android: "production" testers)
 #
-# The reader is a mobile app only — it is distributed as an Android APK via App
+# The reader is a mobile app only: it is distributed as an Android APK via App
 # Distribution and has no web Hosting site. The web surfaces are creator-hub and backoffice.
 #
 # Required GitHub secret:
@@ -98,17 +98,43 @@ jobs:
               --project "$FIREBASE_PROJECT" --expires 30d --non-interactive
           fi
 
-      # The blog is server-rendered, so it deploys to a Cloud Run backend rather
-      # than as static files. This needs the webframeworks experiment, and the
-      # project needs run/cloudfunctions/cloudbuild/artifactregistry enabled.
+      # ── Blog: SSR on Cloud Run ──────────────────────────────────────────────
       #
-      # Preview channels do not support framework backends, so on `develop` this
-      # deploys to the live wolly-blog site as well. Keep that in mind: there is
+      # NOT firebase-tools' `webframeworks` backend. That path synthesises its
+      # own package.json for a Cloud Function and runs `npm ci` against the
+      # monorepo lockfile at deploy time, which cannot stay in sync in an npm
+      # workspaces repo, and it is untested past Next 15.0 while we are pinned
+      # to 15.5.21 for CVE-2025-66478.
+      #
+      # Instead `next build` emits `output: 'standalone'` (already done by the
+      # build step above), which traces the exact files needed and writes a
+      # minimal node_modules. The Dockerfile copies that and runs it, installing
+      # nothing. Hosting then rewrites all traffic to the Cloud Run service.
+      #
+      # Note: this deploys the blog to its LIVE site even from `develop`, unlike
+      # creator-hub and backoffice which go to a preview channel. There is
       # currently one blog environment, not two.
-      - name: Deploy blog (SSR)
+      - name: Authenticate gcloud
+        run: |
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json"
+          gcloud config set project "$FIREBASE_PROJECT"
+
+      - name: Deploy blog to Cloud Run
+        working-directory: apps/blog
+        run: |
+          gcloud run deploy wolly-blog \
+            --source . \
+            --region europe-west2 \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --memory 512Mi \
+            --project "$FIREBASE_PROJECT" \
+            --quiet
+
+      - name: Point the blog hosting site at Cloud Run
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
-          FIREBASE_CLI_EXPERIMENTS: webframeworks
         run: |
           npx firebase-tools deploy \
             --only hosting:blog \

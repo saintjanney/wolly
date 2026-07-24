@@ -39,11 +39,21 @@
     },
     {
       "target": "blog",
-      "source": "apps/blog",
-      "frameworksBackend": {
-        "region": "europe-west2",
-        "maxInstances": 10
-      }
+      "public": "apps/blog/hosting",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "run": {
+            "serviceId": "wolly-blog",
+            "region": "europe-west2"
+          }
+        }
+      ]
     }
   ],
   "functions": [
