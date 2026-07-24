@@ -1048,7 +1048,23 @@ Both use the existing `isAdmin()` rules helper that is already deployed (and, pe
 
 ## 13. Delivery plan
 
-### Phase 0: unblock (nothing ships until this is done)
+### Phase 0: unblock — **COMPLETE** (2026-07-24)
+
+Landed in `35577e3` and `20129e4`, and deployed:
+
+- Security rules resynchronised and **deployed**. The live ruleset was fetched
+  back and byte-compared against the repo: they match. `npm run deploy` is now
+  safe; it was not before.
+- All 32 composite indexes **deployed** and present live. One orphan remains,
+  `books [ownerUserId, updatedAt]`, left in place because removing it needs
+  `--force`, which deletes everything absent from the file.
+- The 48 unowned books are unpublished, reversibly.
+- `@wolly/schema` corrected against the live database; the reader's
+  topic-interest bug fixed.
+
+The original checklist follows, for the record.
+
+### Phase 0 checklist (as originally written)
 
 1. **Unpublish the 48 unowned books.** Run
    `apps/creator-hub/scripts/unpublish-unowned-epubs.js` (dry-run by default;

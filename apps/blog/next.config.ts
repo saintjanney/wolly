@@ -13,6 +13,13 @@ const nextConfig: NextConfig = {
   // (Cloud Run), not as static files. See firebase.json.
 
   // Consume the shared canonical schema package directly from source.
+  //
+  // `@wolly/schema` is a devDependency here, not a dependency, and that is
+  // deliberate. Deploying this app builds a Cloud Function, and that packaging
+  // step runs `npm install` against the public registry, where a workspace-only
+  // package does not exist. Because transpilePackages inlines the schema into
+  // the build output, it is genuinely only needed at compile time, so listing
+  // it as a devDependency is both accurate and what makes the deploy work.
   transpilePackages: ['@wolly/schema'],
 
   // firebase-admin is server-only; keep it out of any client bundle.

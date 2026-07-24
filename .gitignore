@@ -41,3 +41,4 @@ yarn-error.log*
 
 # Next.js build output (blog app is SSR, not static export)
 .next/
+.firebase/
