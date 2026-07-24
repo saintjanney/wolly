@@ -70,6 +70,17 @@
         "src",
         "tsconfig.json"
       ]
+    },
+    {
+      "source": "services/payments",
+      "codebase": "payments",
+      "ignore": [
+        "node_modules",
+        ".git",
+        ".env",
+        ".env.*",
+        ".runtimeconfig.json"
+      ]
     }
   ]
 }

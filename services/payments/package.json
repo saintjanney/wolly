@@ -1,0 +1,18 @@
+{
+  "name": "@wolly/payments",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Paystack payment functions (one-off book purchases). Recovered source; deployed as v1 in us-central1.",
+  "main": "src/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "lint": "echo 'no lint configured'",
+    "serve": "firebase emulators:start --only functions:payments"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.6.1",
+    "firebase-functions": "^7.2.2"
+  }
+}
