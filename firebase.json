@@ -10,14 +10,32 @@
     {
       "target": "creator-hub",
       "public": "apps/creator-hub/out",
-      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-      "rewrites": [{ "source": "**", "destination": "/index.html" }]
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
     },
     {
       "target": "backoffice",
       "public": "apps/backoffice/out",
-      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-      "rewrites": [{ "source": "**", "destination": "/index.html" }]
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
     },
     {
       "target": "blog",
@@ -26,6 +44,22 @@
         "region": "europe-west2",
         "maxInstances": 10
       }
+    }
+  ],
+  "functions": [
+    {
+      "source": "services/api",
+      "codebase": "api",
+      "predeploy": [
+        "npm --workspace @wolly/api run build"
+      ],
+      "ignore": [
+        "node_modules",
+        ".git",
+        "*.log",
+        "src",
+        "tsconfig.json"
+      ]
     }
   ]
 }

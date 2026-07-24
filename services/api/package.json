@@ -1,0 +1,24 @@
+{
+  "name": "@wolly/api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Wolly server tier: Cloud Functions for publishing, payments, email and scheduled work.",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "test": "npm run build && node --test test/render.test.js"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.6.1",
+    "firebase-functions": "^6.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

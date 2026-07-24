@@ -300,7 +300,20 @@ service cloud.firestore {
           && post().moderationStatus != 'removed'
           && hasActivePaidSub(post().publicationId);
 
-        allow write: if isAuthenticated() && isOwner(post().ownerUserId);
+        // The author may save DRAFT JSON directly, but may never write `html`
+        // or `plainText`.
+        //
+        // This is a security boundary, not a tidiness rule. The blog website
+        // injects `html` with dangerouslySetInnerHTML on an origin shared by
+        // every publication, so a creator running a modified client could
+        // otherwise store script that runs against other publications' readers
+        // and, once Phase 2 lands session cookies, against paid subscribers'
+        // sessions. Those two fields are written only by the `publishPost`
+        // callable in services/api, whose renderer emits a closed set of tags.
+        allow write: if isAuthenticated()
+          && isOwner(post().ownerUserId)
+          && !('html' in request.resource.data)
+          && !('plainText' in request.resource.data);
       }
 
       match /revisions/{revisionId} {
