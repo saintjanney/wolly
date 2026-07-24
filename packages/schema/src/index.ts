@@ -13,3 +13,4 @@ export * from './user';
 export * from './review';
 export * from './purchase';
 export * from './social';
+export * from './blog';

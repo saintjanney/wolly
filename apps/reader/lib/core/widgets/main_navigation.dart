@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:wolly_mobile/core/utils/user_fields.dart';
 import 'package:wolly_mobile/features/authentication/domain/auth_event.dart';
 import 'package:wolly_mobile/features/authentication/presentation/bloc/auth_bloc.dart';
 import '../../features/library/presentation/screens/library.dart';
@@ -183,9 +184,7 @@ class _MainNavigationState extends State<MainNavigation> {
         final booksRead = (userData['booksRead'] ?? 0).toString();
         final hoursRead = (userData['hoursRead'] ?? 0).toString();
         final streak = (userData['readingStreak'] ?? 0).toString();
-        final genreCount = userData['genre_prefs'] is List
-            ? (userData['genre_prefs'] as List).length.toString()
-            : '0';
+        final genreCount = genrePrefsFrom(userData).length.toString();
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),

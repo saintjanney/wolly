@@ -27,6 +27,9 @@ firestore-debug.log
 service-account*.json
 sa.json
 
+# TypeScript incremental build artifacts
+*.tsbuildinfo
+
 # Misc
 .DS_Store
 *.pem

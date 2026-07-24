@@ -20,7 +20,43 @@ export const COLLECTIONS = {
   BOOKMARKS: 'bookmarks',
   /** Author follows. */
   FOLLOWS: 'follows',
+
+  // ── Blog (see BLOG_SPEC.md) ──────────────────────────────────────────────
+  /** Creator blogs. The subscribable unit; posts belong to one. */
+  PUBLICATIONS: 'publications',
+  /** Slug reservations, keyed by slug — Firestore has no unique constraint. */
+  PUBLICATION_SLUGS: 'publication_slugs',
+  /** Blog post metadata. Bodies live in the `content` subcollection. */
+  POSTS: 'posts',
+  /** Free and paid subscriptions to a publication. */
+  SUBSCRIPTIONS: 'subscriptions',
+  /** Global email suppression list, keyed by sha256 of the address. */
+  EMAIL_SUPPRESSIONS: 'email_suppressions',
 } as const;
+
+/**
+ * Subcollection names, which are not addressable from `COLLECTIONS` because
+ * they hang off a parent document path.
+ */
+export const SUBCOLLECTIONS = {
+  /** `publications/{pubId}/tiers` */
+  TIERS: 'tiers',
+  /** `publications/{pubId}/email_sends` */
+  EMAIL_SENDS: 'email_sends',
+  /** `posts/{postId}/content` — ids are `free` and `paid`. */
+  CONTENT: 'content',
+  /** `posts/{postId}/revisions` */
+  REVISIONS: 'revisions',
+  /** `posts/{postId}/likes` — id is the liking user's uid. */
+  LIKES: 'likes',
+  /** `posts/{postId}/comments` */
+  COMMENTS: 'comments',
+  /** `posts/{postId}/stats` — ids are `YYYY-MM-DD`. */
+  STATS: 'stats',
+} as const;
+
+export type SubcollectionName =
+  (typeof SUBCOLLECTIONS)[keyof typeof SUBCOLLECTIONS];
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
 

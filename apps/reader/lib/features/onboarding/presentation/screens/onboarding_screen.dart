@@ -43,8 +43,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     setState(() => _saving = true);
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
+      // Write both keys: `genre_prefs` is what this app has always read, and
+      // `selectedGenres` is what the creator-hub reads. Writing one only would
+      // leave the other surface thinking the user never chose any genres.
+      final genres = _selected.toList();
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'genre_prefs': _selected.toList(),
+        'genre_prefs': genres,
+        'selectedGenres': genres,
         'onboardingCompleted': true,
       }, SetOptions(merge: true));
     }
