@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
     "serve": "npm run build && firebase emulators:start --only functions",
-    "test": "npm run build && node --test test/render.test.js"
+    "test": "npm run build && node --test test/render.test.js test/contract.test.js"
   },
   "engines": {
     "node": "20"
