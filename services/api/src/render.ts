@@ -269,10 +269,23 @@ export function readingTimeMinutes(wordCount: number): number {
  * Derives an excerpt from the free portion of a post.
  *
  * Cuts on a word boundary rather than mid-word, since this text becomes the
- * meta description, the card summary and the email preheader.
+ * meta description, the OpenGraph description, the JSON-LD `description` and the
+ * email preheader.
+ *
+ * Angle brackets and ampersands are stripped first. Plain text extracted from a
+ * post preserves whatever the author typed, so a post whose body literally
+ * contains "<script>" would otherwise put that string into a `<meta>` attribute
+ * and a JSON-LD value. Those are safely escaped by the renderers that emit
+ * them, so this is not an injection, but a meta description reading
+ * "&lt;script&gt;" is junk. An excerpt is a summary, not a verbatim copy, so
+ * dropping markup characters loses nothing real.
  */
 export function deriveExcerpt(plainText: string, maxLength = 200): string {
-  const flat = plainText.replace(/\s+/g, ' ').trim();
+  const flat = plainText
+    .replace(/[<>]/g, '') // never let markup characters into a description
+    .replace(/&(?![a-z]+;|#\d+;)/gi, '') // bare ampersands, keep real entities
+    .replace(/\s+/g, ' ')
+    .trim();
   if (flat.length <= maxLength) return flat;
 
   const cut = flat.slice(0, maxLength);

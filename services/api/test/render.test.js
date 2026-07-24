@@ -244,6 +244,22 @@ test('short text is not truncated', () => {
   assert.equal(deriveExcerpt('short one', 200), 'short one');
 });
 
+test('excerpt strips markup characters', () => {
+  // The excerpt becomes a <meta> description and a JSON-LD value. Even though
+  // those are escaped where emitted, a description reading "&lt;script&gt;" is
+  // junk, so angle brackets should never reach it.
+  const excerpt = deriveExcerpt('Intro. <script>alert(1)</script> and <b>bold</b> text.', 200);
+  assert.ok(!excerpt.includes('<'), excerpt);
+  assert.ok(!excerpt.includes('>'), excerpt);
+  assert.ok(excerpt.includes('Intro'));
+  assert.ok(excerpt.includes('bold'));
+});
+
+test('excerpt drops bare ampersands but keeps real entities', () => {
+  assert.ok(!deriveExcerpt('Tom & Jerry', 200).includes('&'));
+  assert.equal(deriveExcerpt('caf&eacute; time', 200), 'caf&eacute; time');
+});
+
 test('reading time is never zero for a non-empty post', () => {
   assert.equal(readingTimeMinutes(0), 0);
   assert.equal(readingTimeMinutes(1), 1);
