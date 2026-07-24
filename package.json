@@ -15,7 +15,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "deploy": "turbo run build && firebase deploy",
+    "deploy": "turbo run build && firebase deploy --only hosting,firestore,storage,functions:api",
     "test": "turbo run test"
   },
   "devDependencies": {

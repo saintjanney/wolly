@@ -140,6 +140,23 @@ jobs:
             --only hosting:blog \
             --project "$FIREBASE_PROJECT" --non-interactive
 
+      # ALWAYS scope this to the `api` codebase.
+      #
+      # The project also contains initializePaystackCheckout and
+      # verifyPaystackPayment, which were deployed from outside this repo and
+      # whose source is not in it or on any branch. They carry no codebase
+      # label, so an unscoped `firebase deploy --only functions` would treat
+      # them as removed and offer to delete live payment functions. Omitting
+      # --force means such a deploy fails rather than deletes, but do not rely
+      # on that: keep the scope.
+      - name: Deploy server functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          npx firebase-tools deploy \
+            --only functions:api \
+            --project "$FIREBASE_PROJECT" --non-interactive
+
   # ── Mobile + reader web: Flutter ────────────────────────────────────────────
   reader:
     needs: config
