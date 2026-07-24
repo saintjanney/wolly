@@ -6,6 +6,7 @@
   "workspaces": [
     "apps/creator-hub",
     "apps/backoffice",
+    "apps/blog",
     "packages/*"
   ],
   "scripts": {

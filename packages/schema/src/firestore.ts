@@ -1,6 +1,6 @@
 /**
  * Canonical Firestore collection names. Import these everywhere instead of
- * hard-coding string literals — this is how we prevent the kind of drift that
+ * hard-coding string literals, this is how we prevent the kind of drift that
  * caused the creator-hub to write a `books` collection the reader never read.
  */
 export const COLLECTIONS = {
@@ -24,7 +24,7 @@ export const COLLECTIONS = {
   // ── Blog (see BLOG_SPEC.md) ──────────────────────────────────────────────
   /** Creator blogs. The subscribable unit; posts belong to one. */
   PUBLICATIONS: 'publications',
-  /** Slug reservations, keyed by slug — Firestore has no unique constraint. */
+  /** Slug reservations, keyed by slug, Firestore has no unique constraint. */
   PUBLICATION_SLUGS: 'publication_slugs',
   /** Blog post metadata. Bodies live in the `content` subcollection. */
   POSTS: 'posts',
@@ -43,15 +43,15 @@ export const SUBCOLLECTIONS = {
   TIERS: 'tiers',
   /** `publications/{pubId}/email_sends` */
   EMAIL_SENDS: 'email_sends',
-  /** `posts/{postId}/content` — ids are `free` and `paid`. */
+  /** `posts/{postId}/content`, ids are `free` and `paid`. */
   CONTENT: 'content',
   /** `posts/{postId}/revisions` */
   REVISIONS: 'revisions',
-  /** `posts/{postId}/likes` — id is the liking user's uid. */
+  /** `posts/{postId}/likes`, id is the liking user's uid. */
   LIKES: 'likes',
   /** `posts/{postId}/comments` */
   COMMENTS: 'comments',
-  /** `posts/{postId}/stats` — ids are `YYYY-MM-DD`. */
+  /** `posts/{postId}/stats`, ids are `YYYY-MM-DD`. */
   STATS: 'stats',
 } as const;
 

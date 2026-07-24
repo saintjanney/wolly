@@ -73,7 +73,7 @@ export interface Publication {
 
   commentAccess: CommentAccess;
 
-  // Denormalised counters — maintained server-side, rejected on client writes.
+  // Denormalised counters, maintained server-side, rejected on client writes.
   subscriberCount: number;
   paidSubscriberCount: number;
   postCount: number;
@@ -160,7 +160,7 @@ export interface BlogPost {
   publishAt?: FirestoreTimestamp | null;
   publishedAt?: FirestoreTimestamp | null;
 
-  // Discovery — `genre` is a `genres` doc id, shared with the book catalog so
+  // Discovery, `genre` is a `genres` doc id, shared with the book catalog so
   // one browse surface returns a creator's books and their posts.
   genre?: string;
   tags?: string[];
@@ -175,7 +175,7 @@ export interface BlogPost {
   sendAsNewsletter: boolean;
   emailSendId?: string | null;
 
-  // Denormalised counters — maintained server-side.
+  // Denormalised counters, maintained server-side.
   viewCount: number;
   likeCount: number;
   commentCount: number;
@@ -260,14 +260,14 @@ export interface Subscription {
   currentPeriodEnd?: FirestoreTimestamp | null;
   cancelAtPeriodEnd: boolean;
 
-  // Paystack linkage — written only by the webhook handler.
+  // Paystack linkage, written only by the webhook handler.
   paystackCustomerCode?: string;
   paystackSubscriptionCode?: string;
   paystackEmailToken?: string;
   lastPaymentAt?: FirestoreTimestamp | null;
   lastPaymentReference?: string;
 
-  // Email preferences — the only fields a subscriber may change themselves.
+  // Email preferences, the only fields a subscriber may change themselves.
   emailOptIn: boolean;
   /** Set when double opt-in completes. Unconfirmed addresses are not sent to. */
   emailConfirmedAt?: FirestoreTimestamp | null;

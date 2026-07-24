@@ -1,7 +1,7 @@
 import type { FirestoreTimestamp } from './firestore';
 
 /**
- * A document in the `purchases` collection — one row per sale. Written by the
+ * A document in the `purchases` collection, one row per sale. Written by the
  * reader on successful checkout; aggregated by the creator-hub dashboard and
  * the backoffice for real sales/revenue analytics.
  */

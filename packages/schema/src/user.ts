@@ -55,7 +55,7 @@ export interface WollyUser {
 
   // ── Preferences ──────────────────────────────────────────────────────────
   /**
-   * Genre **document ids** the user picked during onboarding — creator-hub's
+   * Genre **document ids** the user picked during onboarding, creator-hub's
    * name for it, and the one to prefer when writing. The reader writes the same
    * concept to {@link WollyUser.genre_prefs}; read both.
    */

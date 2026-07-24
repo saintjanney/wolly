@@ -68,14 +68,21 @@ jobs:
 
       - run: npm ci
 
-      # Turbo builds every JS workspace that defines a build task
-      # (creator-hub + backoffice -> apps/*/out).
-      - run: npm run build
-
+      # The blog prerenders its homepage, /discover and /sitemap.xml at build
+      # time, so unlike the other two surfaces its BUILD needs Firestore
+      # credentials, not just its deploy. Written before `npm run build` for
+      # that reason. (A transient failure degrades to an empty list rather than
+      # breaking the build; see apps/blog/src/lib/blog-data.ts.)
       - name: Write service account
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+
+      # Turbo builds every JS workspace that defines a build task
+      # (creator-hub + backoffice -> apps/*/out, blog -> apps/blog/.next).
+      - run: npm run build
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
 
       - name: Deploy creator-hub + backoffice
         env:
@@ -90,6 +97,22 @@ jobs:
               --only creator-hub,backoffice \
               --project "$FIREBASE_PROJECT" --expires 30d --non-interactive
           fi
+
+      # The blog is server-rendered, so it deploys to a Cloud Run backend rather
+      # than as static files. This needs the webframeworks experiment, and the
+      # project needs run/cloudfunctions/cloudbuild/artifactregistry enabled.
+      #
+      # Preview channels do not support framework backends, so on `develop` this
+      # deploys to the live wolly-blog site as well. Keep that in mind: there is
+      # currently one blog environment, not two.
+      - name: Deploy blog (SSR)
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+          FIREBASE_CLI_EXPERIMENTS: webframeworks
+        run: |
+          npx firebase-tools deploy \
+            --only hosting:blog \
+            --project "$FIREBASE_PROJECT" --non-interactive
 
   # ── Mobile + reader web: Flutter ────────────────────────────────────────────
   reader:

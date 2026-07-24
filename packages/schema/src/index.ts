@@ -1,5 +1,5 @@
 /**
- * @wolly/schema — canonical Firestore document schema for the Wolly platform.
+ * @wolly/schema, canonical Firestore document schema for the Wolly platform.
  *
  * Single source of truth for the shapes of documents stored in Firestore.
  * The web apps (creator-hub, backoffice) import these types directly; the

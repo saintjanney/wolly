@@ -6,7 +6,8 @@
     "wolly-1133d": {
       "hosting": {
         "creator-hub": ["wolly-creator-hub"],
-        "backoffice": ["wolly-backoffice"]
+        "backoffice": ["wolly-backoffice"],
+        "blog": ["wolly-blog"]
       }
     }
   }

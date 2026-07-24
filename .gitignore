@@ -38,3 +38,6 @@ yarn-debug.log*
 yarn-error.log*
 
 # Note: the Flutter reader app has its own .gitignore at apps/reader/.gitignore
+
+# Next.js build output (blog app is SSR, not static export)
+.next/
