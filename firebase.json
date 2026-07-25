@@ -80,6 +80,9 @@
         ".env",
         ".env.*",
         ".runtimeconfig.json"
+      ],
+      "predeploy": [
+        "sh services/payments/predeploy-guard.sh"
       ]
     }
   ]
