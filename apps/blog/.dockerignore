@@ -1,0 +1,11 @@
+# The Dockerfile copies only .next/standalone and .next/static, so this file
+# exists purely to keep the build context small. Be careful not to exclude
+# either of those.
+node_modules
+src
+scripts
+.next/cache
+.next/server
+.next/types
+.next/trace
+*.tsbuildinfo

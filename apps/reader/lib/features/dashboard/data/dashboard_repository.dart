@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:wolly_mobile/core/utils/user_fields.dart';
 import 'package:wolly_mobile/features/library/domain/models/book.dart';
 
 class DashboardRepository {
@@ -82,13 +83,7 @@ class DashboardRepository {
           .doc(currentUser.uid)
           .get();
           
-      List<String> genrePrefs = [];
-      if (userDoc.exists) {
-        final data = userDoc.data();
-        if (data != null && data['genre_prefs'] is List) {
-          genrePrefs = List<String>.from(data['genre_prefs']);
-        }
-      }
+      final genrePrefs = genrePrefsFrom(userDoc.data());
       
       // Query books in preferred genres that are published
       QuerySnapshot booksSnapshot;

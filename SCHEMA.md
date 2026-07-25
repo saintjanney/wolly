@@ -73,15 +73,90 @@ contract (see `apps/creator-hub/src/services/bookService.ts`):
 
 - **`genres`**: `{ name, description?, slug?, bookCount?, isActive?, sortOrder? }` — doc id referenced by `epubs.genre`.
 - **`reviews`**: `{ bookId, userId, userName, rating(1–5), title?, content, isVerifiedPurchase, status: pending|approved|rejected|flagged, helpfulVotes, reportCount, createdAt, updatedAt }`.
-- **`purchases`**: `{ userId, bookId, bookTitle, ownerUserId?, reference, amountInPesewas, currency, countryCode?, purchasedAt }`.
+- **`purchases`**: `{ userId, bookId, bookTitle, ownerUserId?, reference,
+  amountInPesewas, currency, countryCode?, status, launchedAt, purchasedAt?,
+  gatewayResponse?, channel? }`. **Server-written only**; rules deny every
+  client write. `initializePaystackCheckout` creates it as `status: 'pending'`
+  and `verifyPaystackPayment` promotes it to `'completed'` after confirming the
+  transaction with Paystack and checking the amount (see `services/payments`).
+  **Only `'completed'` is ownership**: a pending document means checkout was
+  started, not paid.
 - **`reading_progress`** (id `${uid}_${bookId}`): `{ userId, bookId, pagesRead, totalPages, percentageComplete, lastRead }`.
 - **`bookmarks`**: `{ userId, bookId, bookTitle, page, chapterTitle?, note?, createdAt }`.
 - **`follows`**: `{ followerId, authorId, authorName, followedAt }`.
 
-## Known divergence (tracked, not yet reconciled)
+## The `users` divergence (audited 2026-07-24)
 
-The `users` collection was historically written with two key conventions:
-the reader used snake_case (`first_name`, `dob`, `content_preferences`), the
-creator-hub uses camelCase (`firstName`, `displayName`, …). `@wolly/schema`'s
-`WollyUser` captures both; new writes should prefer camelCase. Migrating
-existing user docs is out of scope for the book-contract work.
+The two apps disagree about the shared `users` document in four ways. All are
+captured in `@wolly/schema`'s `WollyUser`; read both keys, prefer camelCase when
+writing.
+
+| Concept | Reader writes | Creator-hub writes | Reconciled by |
+|---|---|---|---|
+| Given/family name, phone | `first_name`, `last_name`, `phone_number` | `firstName`, `lastName`, `phoneNumber` | `scripts/reconcile-user-fields.js` (additive, symmetric) |
+| Topic interests | `genre_prefs` | `selectedGenres` | reader reads both via `genrePrefsFrom()`; onboarding writes both |
+| Date of birth | `date_of_birth` (ISO **string**) | `dateOfBirth` (**Timestamp**) | not reconciled — different types, needs a typed conversion |
+| Country | `country_code` | `country`, `countryOfResidence` | not reconciled — different meanings |
+
+Two corrections came out of the audit:
+
+- **`content_preferences` is written by nothing.** The reader's
+  `WollyUser.fromMap` read it for topic interests, so that list was always
+  empty. It now reads `genre_prefs`/`selectedGenres`.
+- **The topic-interest split was a live bug.** The reader's auth gate keys
+  onboarding off `genre_prefs`, so a user who onboarded in the creator-hub was
+  sent back through onboarding in the reader despite having already chosen
+  genres. Both keys are now read everywhere and written together.
+
+`dob`, `genre_prefs` as a *creator-hub* field, `photoUrl`, and
+`contentPreferences` were declared in `@wolly/schema` but written by neither
+app; they have been removed.
+
+---
+
+## Blog
+
+Blog document shapes live in [`@wolly/schema`](./packages/schema/src/blog.ts)
+and are specified in full, with rationale, in [BLOG_SPEC.md](./BLOG_SPEC.md).
+The three load-bearing decisions:
+
+- **The subscribable unit is a `publications` document**, not a user. A creator
+  may own several; the creator-hub exposes one. The `slug` is the `@handle` in
+  public URLs and is reserved by a matching `publication_slugs` document,
+  because Firestore has no unique constraint.
+- **Post metadata and post body are separate documents.** `posts/{id}` holds
+  everything that gets listed (title, excerpt, cover, counters) and stays cheap
+  to read; the body lives in `posts/{id}/content/{free|paid}`.
+- **The paywall is enforced by the database.** Because the paid body is its own
+  document, security rules gate it on
+  `subscriptions/{uid}_{pubId}.isPaid && currentPeriodEnd > request.time`. The
+  deterministic subscription id is what lets a rule resolve it with one `get()`
+  and no query, matching the convention already used by `reading_progress`,
+  `purchases` and `follows`.
+
+| Collection | Written by | Read by | Purpose |
+|---|---|---|---|
+| `publications` | creator-hub | all | A creator's blog: branding, tiers, counters |
+| `publication_slugs` | creator-hub | server | Unique-handle reservation |
+| `posts` | creator-hub, API | all | Post metadata (the teaser) |
+| `posts/{id}/content` | API | reader, blog site | Body, split `free`/`paid` at the paywall |
+| `posts/{id}/comments` | reader, blog site | all | Threaded comments |
+| `posts/{id}/likes` | reader, blog site | all | Doc id is the liking uid |
+| `subscriptions` | **API only** for paid | reader, creator-hub | Free and paid subscriptions |
+| `email_suppressions` | API | API | Global bounce/complaint/unsubscribe list |
+
+`posts.genre` holds a **`genres` document id**, exactly like `epubs.genre`, so
+one browse surface returns a creator's books and their posts.
+
+`Subscription.isPaid` and `currentPeriodEnd` are writable **only by the Admin
+SDK**, from the Paystack webhook. Rules deny every client write to them; a
+reader may create a free subscription for themselves and change their own email
+preferences, and nothing else.
+
+The Flutter reader mirrors the read-relevant subset of these shapes in Dart at
+[`apps/reader/lib/features/blog/domain/models`](./apps/reader/lib/features/blog/domain/models)
+(`Publication`, `BlogPost`, `PostContent`). Per the contract rule, a change to
+the blog shapes in `@wolly/schema` must update those Dart models too. The reader
+renders `posts/{id}/content.html`; the paywall shows when the `paid` segment
+read is denied by rules, which the reader treats as an expected state, not an
+error.

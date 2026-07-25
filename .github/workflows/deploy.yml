@@ -4,7 +4,7 @@ name: Deploy
 #   push to develop  -> MOCK environment  (web: Hosting preview channel "mock", Android: "qa" testers)
 #   push to main     -> PROD environment  (web: Hosting live,                 Android: "production" testers)
 #
-# The reader is a mobile app only — it is distributed as an Android APK via App
+# The reader is a mobile app only: it is distributed as an Android APK via App
 # Distribution and has no web Hosting site. The web surfaces are creator-hub and backoffice.
 #
 # Required GitHub secret:
@@ -68,14 +68,21 @@ jobs:
 
       - run: npm ci
 
-      # Turbo builds every JS workspace that defines a build task
-      # (creator-hub + backoffice -> apps/*/out).
-      - run: npm run build
-
+      # The blog prerenders its homepage, /discover and /sitemap.xml at build
+      # time, so unlike the other two surfaces its BUILD needs Firestore
+      # credentials, not just its deploy. Written before `npm run build` for
+      # that reason. (A transient failure degrades to an empty list rather than
+      # breaking the build; see apps/blog/src/lib/blog-data.ts.)
       - name: Write service account
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+
+      # Turbo builds every JS workspace that defines a build task
+      # (creator-hub + backoffice -> apps/*/out, blog -> apps/blog/.next).
+      - run: npm run build
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
 
       - name: Deploy creator-hub + backoffice
         env:
@@ -90,6 +97,65 @@ jobs:
               --only creator-hub,backoffice \
               --project "$FIREBASE_PROJECT" --expires 30d --non-interactive
           fi
+
+      # ── Blog: SSR on Cloud Run ──────────────────────────────────────────────
+      #
+      # NOT firebase-tools' `webframeworks` backend. That path synthesises its
+      # own package.json for a Cloud Function and runs `npm ci` against the
+      # monorepo lockfile at deploy time, which cannot stay in sync in an npm
+      # workspaces repo, and it is untested past Next 15.0 while we are pinned
+      # to 15.5.21 for CVE-2025-66478.
+      #
+      # Instead `next build` emits `output: 'standalone'` (already done by the
+      # build step above), which traces the exact files needed and writes a
+      # minimal node_modules. The Dockerfile copies that and runs it, installing
+      # nothing. Hosting then rewrites all traffic to the Cloud Run service.
+      #
+      # Note: this deploys the blog to its LIVE site even from `develop`, unlike
+      # creator-hub and backoffice which go to a preview channel. There is
+      # currently one blog environment, not two.
+      - name: Authenticate gcloud
+        run: |
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json"
+          gcloud config set project "$FIREBASE_PROJECT"
+
+      - name: Deploy blog to Cloud Run
+        working-directory: apps/blog
+        run: |
+          gcloud run deploy wolly-blog \
+            --source . \
+            --region europe-west2 \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --memory 512Mi \
+            --project "$FIREBASE_PROJECT" \
+            --quiet
+
+      - name: Point the blog hosting site at Cloud Run
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          npx firebase-tools deploy \
+            --only hosting:blog \
+            --project "$FIREBASE_PROJECT" --non-interactive
+
+      # ALWAYS scope this to the `api` codebase.
+      #
+      # The project also contains initializePaystackCheckout and
+      # verifyPaystackPayment, which were deployed from outside this repo and
+      # whose source is not in it or on any branch. They carry no codebase
+      # label, so an unscoped `firebase deploy --only functions` would treat
+      # them as removed and offer to delete live payment functions. Omitting
+      # --force means such a deploy fails rather than deletes, but do not rely
+      # on that: keep the scope.
+      - name: Deploy server functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          npx firebase-tools deploy \
+            --only functions:api \
+            --project "$FIREBASE_PROJECT" --non-interactive
 
   # ── Mobile + reader web: Flutter ────────────────────────────────────────────
   reader:

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:wolly_mobile/core/utils/user_fields.dart';
 import 'package:wolly_mobile/features/authentication/domain/auth_state.dart';
 import 'package:wolly_mobile/features/authentication/presentation/bloc/auth_bloc.dart';
 import 'package:wolly_mobile/features/authentication/presentation/screens/otp_login_screen.dart';
@@ -85,12 +86,8 @@ class _OnboardingCheckState extends State<_OnboardingCheck> {
     }
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      final data = doc.data();
-      final prefs = data?['genre_prefs'];
-      final completed = data?['onboardingCompleted'] == true;
-      final hasPrefs = prefs is List && prefs.isNotEmpty;
       setState(() {
-        _needsOnboarding = !completed && !hasPrefs;
+        _needsOnboarding = !hasCompletedOnboarding(doc.data());
         _checking = false;
       });
     } catch (_) {

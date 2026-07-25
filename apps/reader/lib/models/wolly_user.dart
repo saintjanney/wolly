@@ -1,4 +1,4 @@
-
+import 'package:wolly_mobile/core/utils/user_fields.dart';
 class WollyUser {
   final String? firstName;
   final String? lastName;
@@ -32,8 +32,10 @@ class WollyUser {
       // `dateOfBirth` may be a Timestamp (creator-hub); only use it as a
       // fallback when it's a plain string, to avoid a type error.
       birthday: map['dob'] ?? (map['dateOfBirth'] is String ? map['dateOfBirth'] : null),
-      contentPreference:
-          map['content_preferences'] ?? map['contentPreferences'] ?? <dynamic>[],
+      // Topic interests. `content_preferences` was read here but is written by
+      // nothing in either app, so this was always empty; the real keys are
+      // `genre_prefs` (reader) and `selectedGenres` (creator-hub).
+      contentPreference: genrePrefsFrom(map),
       phoneNumber: map['phone_number'] ?? map['phoneNumber'],
       photoUrl: map['photoUrl'] ?? map['photoURL'],
       email: map['email'],

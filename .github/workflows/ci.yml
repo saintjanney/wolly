@@ -21,6 +21,12 @@ jobs:
         run: npx tsc --noEmit -p packages/schema/tsconfig.json
       - name: Lint
         run: npm run lint
+      # Includes the adversarial tests for the post renderer. That renderer's
+      # output is injected with dangerouslySetInnerHTML on an origin shared by
+      # every publication, so treat a failure here as a security regression
+      # rather than a flaky test.
+      - name: Test
+        run: npm run test
       - name: Build web apps
         run: npm run build
 

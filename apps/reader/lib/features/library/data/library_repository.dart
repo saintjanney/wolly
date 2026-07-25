@@ -15,13 +15,24 @@ class LibraryRepository {
     return 'epub';
   }
 
+  /// Every published book.
+  ///
+  /// The `isPublished` filter is REQUIRED, not an optimisation. The security
+  /// rule permits reading an epub only when `isPublished == true`, and Firestore
+  /// evaluates rules for a list query against the query itself, so an
+  /// unfiltered read of the collection is denied outright. This method used to
+  /// fetch everything and filter in Dart, which meant the query was always
+  /// permission-denied and the Library and genre screens silently showed
+  /// nothing.
   Future<List<Book>> fetchAllBooks() async {
     final List<Book> books = [];
     try {
-      final querySnapshot = await _firestore.collection('epubs').get();
+      final querySnapshot = await _firestore
+          .collection('epubs')
+          .where('isPublished', isEqualTo: true)
+          .get();
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
-        if (data['isPublished'] == false) continue;
         books.add(
           Book(
             id: doc.id,
@@ -42,6 +53,14 @@ class LibraryRepository {
       }
       return books;
     } catch (e) {
+      // Swallowing this is what let the bug above hide for months: the screens
+      // just looked empty. Keep returning a list so the UI cannot crash, but
+      // make it loud in development.
+      assert(() {
+        // ignore: avoid_print
+        print('fetchAllBooks failed: $e');
+        return true;
+      }());
       return books;
     }
   }

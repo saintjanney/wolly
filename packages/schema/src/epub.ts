@@ -26,16 +26,16 @@ export interface DistributionChannels {
 }
 
 /**
- * A document in the `epubs` collection — the single book record shared by the
+ * A document in the `epubs` collection, the single book record shared by the
  * whole platform.
  *
  * It is split into two groups:
  *
- *  1. READER CONTRACT — the fields the Flutter reader actually reads. The
+ *  1. READER CONTRACT, the fields the Flutter reader actually reads. The
  *     creator-hub MUST populate every one of these when it publishes a book,
  *     or the book will not render correctly in the reader.
  *
- *  2. CREATOR METADATA — richer fields the creator-hub & backoffice use. The
+ *  2. CREATOR METADATA, richer fields the creator-hub & backoffice use. The
  *     reader ignores them today, but they live on the same document so there is
  *     one source of truth per book.
  */
@@ -52,7 +52,7 @@ export interface EpubBook {
   genre: string;
   /** Public download URL of the book file. The reader reads `url`. */
   url: string;
-  /** `pdf` or `epub` — drives which reader UI opens. */
+  /** `pdf` or `epub`, drives which reader UI opens. */
   fileType: FileType;
   /** Public URL of the cover image. The reader reads `coverUrl`. */
   coverUrl: string | null;

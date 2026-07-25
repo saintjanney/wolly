@@ -2,8 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:wolly_mobile/core/utils/user_fields.dart';
 import 'package:wolly_mobile/features/authentication/domain/auth_event.dart';
 import 'package:wolly_mobile/features/authentication/presentation/bloc/auth_bloc.dart';
+import '../../features/blog/presentation/screens/blog_feed_screen.dart';
 import '../../features/library/presentation/screens/library.dart';
 import '../../features/library/presentation/screens/search_screen.dart';
 import '../../features/dashboard/presentation/screens/world_class_home_screen.dart';
@@ -53,6 +55,10 @@ class _MainNavigationState extends State<MainNavigation> {
             label: 'Home',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.article_outlined),
+            label: 'Read',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.library_books),
             label: 'Library',
           ),
@@ -97,8 +103,10 @@ class _MainNavigationState extends State<MainNavigation> {
       case 0:
         return 'Home';
       case 1:
-        return 'Library';
+        return 'Read';
       case 2:
+        return 'Library';
+      case 3:
         return 'Profile';
       default:
         return 'Wolly';
@@ -110,8 +118,10 @@ class _MainNavigationState extends State<MainNavigation> {
       case 0:
         return _buildHomeScreen();
       case 1:
-        return _buildLibraryScreen();
+        return const BlogFeedBody();
       case 2:
+        return _buildLibraryScreen();
+      case 3:
         return _buildProfileScreen();
       default:
         return _buildHomeScreen();
@@ -183,9 +193,7 @@ class _MainNavigationState extends State<MainNavigation> {
         final booksRead = (userData['booksRead'] ?? 0).toString();
         final hoursRead = (userData['hoursRead'] ?? 0).toString();
         final streak = (userData['readingStreak'] ?? 0).toString();
-        final genreCount = userData['genre_prefs'] is List
-            ? (userData['genre_prefs'] as List).length.toString()
-            : '0';
+        final genreCount = genrePrefsFrom(userData).length.toString();
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
