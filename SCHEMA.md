@@ -145,3 +145,11 @@ one browse surface returns a creator's books and their posts.
 SDK**, from the Paystack webhook. Rules deny every client write to them; a
 reader may create a free subscription for themselves and change their own email
 preferences, and nothing else.
+
+The Flutter reader mirrors the read-relevant subset of these shapes in Dart at
+[`apps/reader/lib/features/blog/domain/models`](./apps/reader/lib/features/blog/domain/models)
+(`Publication`, `BlogPost`, `PostContent`). Per the contract rule, a change to
+the blog shapes in `@wolly/schema` must update those Dart models too. The reader
+renders `posts/{id}/content.html`; the paywall shows when the `paid` segment
+read is denied by rules, which the reader treats as an expected state, not an
+error.

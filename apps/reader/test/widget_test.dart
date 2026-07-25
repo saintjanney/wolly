@@ -1,30 +1,95 @@
-// This is a basic Flutter widget test.
+// Tests for the blog domain models.
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// (Replaces the default `flutter create` counter smoke test, which referenced a
+// counter widget the app never had and had been failing since the monorepo
+// move.)
 
-import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:wolly_mobile/main.dart';
+import 'package:wolly_mobile/features/blog/domain/models/blog_post.dart';
+import 'package:wolly_mobile/features/blog/domain/models/publication.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('BlogPost.fromMap', () {
+    test('reads the reader-contract fields', () {
+      final post = BlogPost.fromMap({
+        'publicationId': 'pub1',
+        'publicationSlug': 'test-kitchen',
+        'authorName': 'Ama',
+        'title': 'A post',
+        'subtitle': 'the sub',
+        'slug': 'a-post',
+        'excerpt': 'summary',
+        'hasPaywall': true,
+        'visibility': 'paid',
+        'readingTimeMinutes': 3,
+        'likeCount': 5,
+        'tags': ['cooking', 'notes'],
+      }, id: 'post1');
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+      expect(post.id, 'post1');
+      expect(post.publicationSlug, 'test-kitchen');
+      expect(post.title, 'A post');
+      expect(post.hasPaywall, isTrue);
+      expect(post.visibility, PostVisibility.paid);
+      expect(post.readingTimeMinutes, 3);
+      expect(post.likeCount, 5);
+      expect(post.tags, ['cooking', 'notes']);
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('defaults are safe when fields are missing', () {
+      final post = BlogPost.fromMap({}, id: 'x');
+      expect(post.title, '');
+      expect(post.hasPaywall, isFalse);
+      expect(post.visibility, PostVisibility.public);
+      expect(post.readingTimeMinutes, 1);
+      expect(post.tags, isEmpty);
+      expect(post.publishedAt, isNull);
+    });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('unknown visibility falls back to public', () {
+      final post = BlogPost.fromMap({'visibility': 'nonsense'}, id: 'x');
+      expect(post.visibility, PostVisibility.public);
+    });
+
+    test('publishedAt is read from a Timestamp', () {
+      final now = DateTime(2026, 7, 24, 12);
+      final post = BlogPost.fromMap(
+        {'publishedAt': Timestamp.fromDate(now)},
+        id: 'x',
+      );
+      expect(post.publishedAt, now);
+    });
+  });
+
+  group('PostContent.fromMap', () {
+    test('reads the rendered html', () {
+      final content = PostContent.fromMap({'html': '<p>hi</p>'});
+      expect(content.html, '<p>hi</p>');
+    });
+
+    test('missing html is empty, not null', () {
+      expect(PostContent.fromMap({}).html, '');
+    });
+  });
+
+  group('Publication.fromMap', () {
+    test('reads slug, owner and counters', () {
+      final pub = Publication.fromMap({
+        'slug': 'test-kitchen',
+        'ownerUserId': 'creator1',
+        'name': 'The Test Kitchen',
+        'tagline': 'cooking notes',
+        'paidEnabled': true,
+        'subscriberCount': 12,
+      }, id: 'pub1');
+
+      expect(pub.id, 'pub1');
+      expect(pub.slug, 'test-kitchen');
+      expect(pub.ownerUserId, 'creator1');
+      expect(pub.paidEnabled, isTrue);
+      expect(pub.subscriberCount, 12);
+    });
   });
 }
