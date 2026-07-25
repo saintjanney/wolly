@@ -4,10 +4,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { 
-  BookOpenIcon, 
+import {
+  BookOpenIcon,
   Cog6ToothIcon,
   Squares2X2Icon,
+  PencilSquareIcon,
   Bars3Icon,
   XMarkIcon,
   ChevronLeftIcon,
@@ -18,6 +19,7 @@ import { useState } from 'react';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Squares2X2Icon, color: 'blue' },
   { name: 'My Books', href: '/books', icon: BookOpenIcon, color: 'purple' },
+  { name: 'Blog', href: '/blog', icon: PencilSquareIcon, color: 'indigo' },
   { name: 'Settings', href: '/settings', icon: Cog6ToothIcon, color: 'gray' },
 ];
 
