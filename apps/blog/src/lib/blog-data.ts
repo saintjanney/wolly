@@ -109,6 +109,9 @@ export async function listPublishedPosts(
   return listOrEmptyAtBuild('listPublishedPosts', async () => {
     const snap = await adminDb()
       .collection(COLLECTIONS.POSTS)
+      // Mirrors the security rule the reader must satisfy, so both surfaces
+      // agree on what "public" means even though this one bypasses rules.
+      .where('isPubliclyReadable', '==', true)
       .where('publicationId', '==', publicationId)
       .where('status', '==', 'published')
       .orderBy('publishedAt', 'desc')
@@ -146,6 +149,7 @@ export async function listRecentPosts(limit = 30): Promise<BlogPost[]> {
   return listOrEmptyAtBuild('listRecentPosts', async () => {
     const snap = await adminDb()
       .collection(COLLECTIONS.POSTS)
+      .where('isPubliclyReadable', '==', true)
       .where('status', '==', 'published')
       .orderBy('publishedAt', 'desc')
       .limit(limit)

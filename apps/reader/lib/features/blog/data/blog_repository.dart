@@ -41,8 +41,13 @@ class BlogRepository {
   /// the discovery feed until per-subscription filtering lands in Phase 2.
   Future<List<BlogPost>> fetchRecentPosts({int limit = 30}) async {
     try {
+      // `isPubliclyReadable` is required, not decorative: security rules gate
+      // reader access on exactly this field, and Firestore evaluates rules for
+      // a list query against the query. Without it the whole query is
+      // permission-denied. See BlogPost.isPubliclyReadable in @wolly/schema.
       final snap = await _firestore
           .collection('posts')
+          .where('isPubliclyReadable', isEqualTo: true)
           .where('status', isEqualTo: 'published')
           .orderBy('publishedAt', descending: true)
           .limit(limit)
@@ -61,6 +66,7 @@ class BlogRepository {
     try {
       final snap = await _firestore
           .collection('posts')
+          .where('isPubliclyReadable', isEqualTo: true)
           .where('publicationId', isEqualTo: publicationId)
           .where('status', isEqualTo: 'published')
           .orderBy('publishedAt', descending: true)

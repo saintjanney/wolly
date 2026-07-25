@@ -160,6 +160,28 @@ export interface BlogPost {
   publishAt?: FirestoreTimestamp | null;
   publishedAt?: FirestoreTimestamp | null;
 
+  /**
+   * Whether any signed-in reader may read this post, denormalised from
+   * `status` and `moderationStatus`:
+   *
+   *     (status === 'published' || status === 'unlisted') &&
+   *     moderationStatus !== 'removed'
+   *
+   * This exists for security rules, and it is load-bearing. Firestore evaluates
+   * rules for a `list` query against the QUERY, not the returned documents, so a
+   * rule clause the query cannot provably satisfy fails the whole query. The
+   * previous rule tested `moderationStatus != 'removed'`, an inequality no query
+   * filter can prove, which made every feed query permission-denied.
+   *
+   * A single boolean is checkable with one equality filter, so it works for both
+   * `get` (a direct link to an unlisted post) and `list` (feeds). Same idea as
+   * `epubs.isPublished`.
+   *
+   * Server-maintained: written by the publish callable and by moderation. Never
+   * trust a client write of this field.
+   */
+  isPubliclyReadable: boolean;
+
   // Discovery, `genre` is a `genres` doc id, shared with the book catalog so
   // one browse surface returns a creator's books and their posts.
   genre?: string;
@@ -187,6 +209,19 @@ export interface BlogPost {
 
   createdAt: FirestoreTimestamp;
   updatedAt: FirestoreTimestamp;
+}
+
+/**
+ * Derives {@link BlogPost.isPubliclyReadable}. The single definition of
+ * "a reader may see this", used by the publish callable and by moderation so
+ * the two cannot disagree.
+ */
+export function derivePubliclyReadable(
+  status: PostStatus,
+  moderationStatus: PostModerationStatus,
+): boolean {
+  const visibleStatus = status === 'published' || status === 'unlisted';
+  return visibleStatus && moderationStatus !== 'removed';
 }
 
 /** The two segment ids under `posts/{postId}/content`. */

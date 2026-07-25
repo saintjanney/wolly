@@ -82,3 +82,25 @@ test('paid content is gated on an active paid subscription', () => {
     'an expired subscription must not grant access',
   );
 });
+
+test('derivePubliclyReadable is identical in the schema and the publish callable', () => {
+  // publish.ts duplicates this function because services/api cannot depend on
+  // @wolly/schema (workspace deps break Cloud Functions packaging). If the two
+  // drift, posts become readable when they should not be, or invisible when
+  // they should be. Compare the normalised function bodies.
+  const schema = readSource('packages/schema/src/blog.ts');
+  const callable = readSource('services/api/src/publish.ts');
+
+  const grab = (src) => {
+    const i = src.indexOf('function derivePubliclyReadable');
+    assert.notEqual(i, -1, 'derivePubliclyReadable not found');
+    const body = src.slice(src.indexOf('{', i), src.indexOf('\n}', i));
+    return body.replace(/\s+/g, ' ').trim();
+  };
+
+  assert.equal(
+    grab(callable),
+    grab(schema),
+    'derivePubliclyReadable has drifted between @wolly/schema and services/api',
+  );
+});

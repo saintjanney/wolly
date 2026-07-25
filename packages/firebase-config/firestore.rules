@@ -249,9 +249,17 @@ service cloud.firestore {
 
       // Metadata is the teaser: readable for any live post. The body is gated
       // separately under /content below.
-      allow read: if isAuthenticated()
-        && resource.data.status == 'published'
-        && resource.data.moderationStatus != 'removed';
+      //
+      // This tests ONE denormalised boolean rather than `status == 'published'
+      // && moderationStatus != 'removed'`. Firestore evaluates rules for a
+      // `list` query against the query itself, so a clause the query cannot
+      // provably satisfy fails the entire query, and no query filter can prove
+      // an inequality like `moderationStatus != 'removed'`. The old form made
+      // every reader feed query permission-denied while looking correct.
+      //
+      // `isPubliclyReadable` is derived server-side by derivePubliclyReadable()
+      // in @wolly/schema and covers published and unlisted, minus removed.
+      allow read: if isAuthenticated() && resource.data.isPubliclyReadable == true;
       allow read: if isAuthenticated() && isOwner(resource.data.ownerUserId);
       allow read: if isAdmin();
 
@@ -262,7 +270,9 @@ service cloud.firestore {
         && request.resource.data.likeCount == 0
         && request.resource.data.commentCount == 0
         && request.resource.data.reportCount == 0
-        && request.resource.data.moderationStatus == 'ok';
+        && request.resource.data.moderationStatus == 'ok'
+        // Only the publish callable may make a post publicly readable.
+        && request.resource.data.isPubliclyReadable == false;
 
       allow update: if isAuthenticated()
         && isOwner(resource.data.ownerUserId)
@@ -273,7 +283,9 @@ service cloud.firestore {
         && request.resource.data.likeCount == resource.data.likeCount
         && request.resource.data.commentCount == resource.data.commentCount
         && request.resource.data.reportCount == resource.data.reportCount
-        && request.resource.data.moderationStatus == resource.data.moderationStatus;
+        && request.resource.data.moderationStatus == resource.data.moderationStatus
+        // Server-maintained, like the counters above.
+        && request.resource.data.isPubliclyReadable == resource.data.isPubliclyReadable;
       allow update: if isAdmin();
       allow delete: if isAuthenticated() && isOwner(resource.data.ownerUserId);
 

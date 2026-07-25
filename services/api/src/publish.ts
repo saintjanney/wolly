@@ -14,6 +14,19 @@ import {
 
 const REGION = 'europe-west2';
 
+/**
+ * Mirror of derivePubliclyReadable() in @wolly/schema.
+ *
+ * Duplicated rather than imported because this codebase cannot depend on a
+ * workspace package: deploying a Cloud Function runs `npm install` against the
+ * public registry, where @wolly/schema does not exist. A contract test asserts
+ * the two definitions stay identical.
+ */
+function derivePubliclyReadable(status: string, moderationStatus: string): boolean {
+  const visibleStatus = status === 'published' || status === 'unlisted';
+  return visibleStatus && moderationStatus !== 'removed';
+}
+
 const POSTS = 'posts';
 const PUBLICATIONS = 'publications';
 const CONTENT = 'content';
@@ -74,6 +87,7 @@ export const publishPost = onCall(
       title?: string;
       slug?: string;
       contentVersion?: number;
+      moderationStatus?: string;
     };
 
     // Ownership is checked here because the Admin SDK bypasses security rules.
@@ -173,6 +187,12 @@ export const publishPost = onCall(
       readingTimeMinutes: readingTimeMinutes(wordCount),
       contentVersion: (post.contentVersion ?? 0) + 1,
       status: scheduled ? 'scheduled' : 'published',
+      // Security rules gate reader access on this single boolean; see the
+      // comment on BlogPost.isPubliclyReadable in @wolly/schema.
+      isPubliclyReadable: derivePubliclyReadable(
+        scheduled ? 'scheduled' : 'published',
+        post.moderationStatus ?? 'ok',
+      ),
       publishAt: scheduled ? new Date(publishAt as number) : null,
       publishedAt: scheduled ? null : FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),

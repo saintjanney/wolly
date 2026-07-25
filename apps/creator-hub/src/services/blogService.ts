@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
-import { db, functions } from '@/lib/firebase';
+import { auth, db, functions } from '@/lib/firebase';
 import {
   COLLECTIONS,
   SUBCOLLECTIONS,
@@ -172,15 +172,33 @@ export class BlogService {
 
   // ── Posts ────────────────────────────────────────────────────────────────
 
+  /**
+   * The creator's posts, newest first.
+   *
+   * Filtered by `ownerUserId`, not `publicationId`. Firestore evaluates rules
+   * for a `list` query against the query itself, so the query has to make one
+   * of the `allow read` clauses provable. Filtering by owner matches the
+   * `isOwner(resource.data.ownerUserId)` clause and so returns drafts too;
+   * filtering only by publication proved nothing and was permission-denied.
+   *
+   * The publication filter is applied in memory. A creator has one publication
+   * today, so this narrows nothing, and it stays correct if that changes.
+   */
   static async listPosts(publicationId: string): Promise<BlogPost[]> {
+    const userId = auth.currentUser?.uid;
+    if (!userId) return [];
+
     const snap = await getDocs(
       query(
         collection(db, COLLECTIONS.POSTS),
-        where('publicationId', '==', publicationId),
+        where('ownerUserId', '==', userId),
         orderBy('updatedAt', 'desc'),
       ),
     );
-    return snap.docs.map((d) => ({ ...(d.data() as BlogPost), id: d.id }));
+
+    return snap.docs
+      .map((d) => ({ ...(d.data() as BlogPost), id: d.id }))
+      .filter((p) => p.publicationId === publicationId);
   }
 
   static async getPost(postId: string): Promise<BlogPost | null> {
@@ -211,6 +229,9 @@ export class BlogService {
       visibility: 'public',
       hasPaywall: false,
       status: 'draft',
+      // Rules require a new post to start not publicly readable; only the
+      // publish callable may flip this.
+      isPubliclyReadable: false,
       publishAt: null,
       publishedAt: null,
       tags: [],
