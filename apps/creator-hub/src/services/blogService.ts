@@ -21,6 +21,7 @@ import {
   SUBCOLLECTIONS,
   type BlogPost,
   type Publication,
+  type Tier,
 } from '@wolly/schema';
 
 /**
@@ -168,6 +169,58 @@ export class BlogService {
       ...safe,
       updatedAt: serverTimestamp(),
     });
+  }
+
+  // ── Tiers ────────────────────────────────────────────────────────────────
+
+  /**
+   * A publication's subscription tiers, cheapest first.
+   *
+   * Prices are stored in MINOR units (pesewas for GHS), matching
+   * `Purchase.amountInPesewas`, so no float arithmetic touches money.
+   */
+  static async listTiers(publicationId: string): Promise<Tier[]> {
+    const snap = await getDocs(
+      collection(db, COLLECTIONS.PUBLICATIONS, publicationId, SUBCOLLECTIONS.TIERS),
+    );
+    return snap.docs
+      .map((d) => ({ ...(d.data() as Tier), id: d.id }))
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.monthlyPrice - b.monthlyPrice);
+  }
+
+  /**
+   * Creates or updates a tier.
+   *
+   * `paystackPlanCodeMonthly` / `...Annual` are deliberately NOT settable here.
+   * Creating a Paystack plan requires the secret key, which only the server has,
+   * so those codes are filled in server-side. A tier without them can be edited
+   * but cannot be subscribed to yet.
+   */
+  static async saveTier(
+    publicationId: string,
+    tier: Omit<Tier, 'id' | 'paystackPlanCodeMonthly' | 'paystackPlanCodeAnnual'> &
+      { id?: string },
+  ): Promise<string> {
+    const { id, ...fields } = tier;
+    const ref = id
+      ? doc(db, COLLECTIONS.PUBLICATIONS, publicationId, SUBCOLLECTIONS.TIERS, id)
+      : doc(collection(db, COLLECTIONS.PUBLICATIONS, publicationId, SUBCOLLECTIONS.TIERS));
+
+    await setDoc(ref, { ...fields, updatedAt: serverTimestamp() }, { merge: true });
+    return ref.id;
+  }
+
+  /**
+   * Deactivates a tier rather than deleting it.
+   *
+   * Deleting would orphan any subscription pointing at it, and a subscriber's
+   * record must stay explainable after the creator changes their pricing.
+   */
+  static async deactivateTier(publicationId: string, tierId: string): Promise<void> {
+    await updateDoc(
+      doc(db, COLLECTIONS.PUBLICATIONS, publicationId, SUBCOLLECTIONS.TIERS, tierId),
+      { isActive: false, updatedAt: serverTimestamp() },
+    );
   }
 
   // ── Posts ────────────────────────────────────────────────────────────────
