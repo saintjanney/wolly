@@ -135,3 +135,45 @@ class PaystackService {
     }
   }
 }
+
+/// Resolves a fresh, short-lived download URL for a book.
+///
+/// Paid book files no longer carry a permanent public token, so the stored
+/// `epubs.url` will not work for them. The server checks entitlement (owner, or a
+/// completed purchase) and returns a signed URL valid for a few minutes. Free
+/// books come back unchanged.
+class BookDownloadService {
+  BookDownloadService._();
+
+  static const _endpoint =
+      'https://europe-west2-wolly-1133d.cloudfunctions.net/getBookDownloadUrl';
+
+  /// Returns a usable URL, or throws [PaystackError] with a reader-facing
+  /// message ("Buy this book to read it.").
+  static Future<String> resolveUrl(String bookId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final token = await user?.getIdToken();
+    if (token == null) throw const PaystackError('Please sign in to read.');
+
+    final res = await http.post(
+      Uri.parse(_endpoint),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      // Callable protocol: the payload is wrapped in `data`.
+      body: jsonEncode({'data': {'bookId': bookId}}),
+    );
+
+    final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode != 200) {
+      final error = decoded['error'];
+      final message = error is Map<String, dynamic> ? error['message'] : null;
+      throw PaystackError((message as String?) ?? 'Could not open this book.');
+    }
+
+    final url = (decoded['result'] as Map<String, dynamic>?)?['url'] as String?;
+    if (url == null) throw const PaystackError('Could not open this book.');
+    return url;
+  }
+}

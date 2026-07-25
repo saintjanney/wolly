@@ -131,8 +131,32 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       widget.book.id ??
       widget.book.downloadUrl.split('/').last.split('?').first;
 
-  void _openReader() {
+  /// Opens the reader with a freshly-issued download URL.
+  ///
+  /// Paid book files no longer carry a permanent public token, so the URL stored
+  /// on the book document will not fetch them. The server issues a short-lived
+  /// signed URL after checking entitlement.
+  Future<void> _openReader() async {
     final book = widget.book;
+
+    try {
+      book.downloadUrl = await BookDownloadService.resolveUrl(_effectiveBookId);
+    } on PaystackError catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+      return;
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open this book. Please try again.')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
     if (book.fileType == 'pdf') {
       Navigator.of(context, rootNavigator: true).pushReplacement(
         MaterialPageRoute(builder: (_) => ReadPDF(book: book)),

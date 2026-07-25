@@ -148,11 +148,16 @@ opened.
 transaction with Paystack and checking the amount. Verified by attempting the
 original exploit as a real signed-in user; all three write attempts are denied.
 
-**Still open, and it matters:** the book FILE is a Firebase Storage download URL
-with an access token, stored on the `epubs` document that any authenticated user
-can read. Anyone holding that URL can download a paid book without paying,
-verified by an unauthenticated fetch returning HTTP 200. Verifying the purchase
-record does not protect the content. Closing that needs short-lived signed URLs
+**Also fixed (2026-07-25):** the book FILE was a Firebase Storage download URL
+carrying a permanent access token, stored on the `epubs` document that any
+authenticated user can read, so a paid book could be fetched by anyone; an
+unauthenticated request returned HTTP 200. `getBookDownloadUrl` now checks
+entitlement and issues a signed URL valid for 15 minutes, and the permanent
+tokens on paid files have been revoked. The same unauthenticated fetch now
+returns 403. Storage rules could not solve this: files live at
+`books/{ownerUid}/{timestamp}/...` and that timestamp is not the book's document
+id, so a rule cannot correlate the path with a purchase. Superseded note: this
+previously needed short-lived signed URLs
 issued by a function after an ownership check, which is tracked as the next
 payment task.
 
