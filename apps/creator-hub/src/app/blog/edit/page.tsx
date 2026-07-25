@@ -1,14 +1,17 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
-import { PostEditor } from '@/components/blog/PostEditor';
+import { PostEditor, docIsEmpty } from '@/components/blog/PostEditor';
 import { BlogService, type ComposerDoc } from '@/services/blogService';
 import type { BlogPost } from '@wolly/schema';
+
+/** Debounce for the draft network write, not for local state. */
+const AUTOSAVE_DELAY_MS = 5_000;
 
 /**
  * The composer, at `/blog/edit?post=<id>`.
@@ -37,7 +40,14 @@ function Editor() {
 
   const [post, setPost] = useState<BlogPost | null>(null);
   const [initialDoc, setInitialDoc] = useState<ComposerDoc | null>(null);
-  const [body, setBody] = useState<ComposerDoc | null>(null);
+  /**
+   * The live document. A ref, not state: Publish reads it, and it must never be
+   * a render behind what the author has typed.
+   */
+  const bodyRef = useRef<ComposerDoc | null>(null);
+  /** Mirrors "is there anything to publish", purely to drive the button. */
+  const [hasBody, setHasBody] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [loading, setLoading] = useState(true);
@@ -67,7 +77,8 @@ function Editor() {
         setTitle(loaded.title);
         setSubtitle(loaded.subtitle ?? '');
         setInitialDoc(doc);
-        setBody(doc);
+        bodyRef.current = doc;
+        setHasBody(!docIsEmpty(doc));
       } catch (error) {
         console.error('Failed to load post', error);
         toast.error('Could not load the post.');
@@ -77,20 +88,60 @@ function Editor() {
     })();
   }, [authLoading, user, postId, router]);
 
-  /** Autosave from the editor. Body only; metadata saves on blur. */
+  /** Writes the current body to the draft. Safe to call at any time. */
+  const flushDraft = useCallback(async () => {
+    const doc = bodyRef.current;
+    if (!doc) return;
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    try {
+      await BlogService.saveDraft(postId, { doc });
+      setSavedAt(new Date());
+    } catch (error) {
+      console.error('Autosave failed', error);
+      toast.error('Could not save your draft. Your text is still on screen.');
+    }
+  }, [postId]);
+
+  /**
+   * Every keystroke updates `bodyRef` immediately and schedules a save.
+   *
+   * The body lives in a ref rather than state because Publish reads it. It was
+   * previously debounced state, so clicking Publish before the debounce elapsed
+   * saw `null` and was rejected with "Write something first" even though the
+   * author had clearly written something. A ref is always current, so Publish
+   * cannot depend on render timing.
+   *
+   * Only the network write is debounced.
+   */
   const onBodyChange = useCallback(
-    async (doc: ComposerDoc) => {
-      setBody(doc);
-      try {
-        await BlogService.saveDraft(postId, { doc });
-        setSavedAt(new Date());
-      } catch (error) {
-        console.error('Autosave failed', error);
-        toast.error('Autosave failed. Your text is still on screen.');
-      }
+    (doc: ComposerDoc) => {
+      bodyRef.current = doc;
+      setHasBody(!docIsEmpty(doc));
+
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        void flushDraft();
+      }, AUTOSAVE_DELAY_MS);
     },
+    // flushDraft is stable via its own ref usage; postId is the only real dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [postId],
   );
+
+  // Flush a pending save when leaving, so navigating away cannot drop the last
+  // few seconds of typing.
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        const doc = bodyRef.current;
+        if (doc) void BlogService.saveDraft(postId, { doc });
+      }
+    };
+  }, [postId]);
 
   const saveMeta = useCallback(async () => {
     if (!post) return;
@@ -106,14 +157,17 @@ function Editor() {
   }, [post, postId, title, subtitle]);
 
   const publish = async () => {
-    if (!body) {
+    // Flush any pending draft write first, then publish what is on screen NOW.
+    await flushDraft();
+    const doc = bodyRef.current;
+    if (docIsEmpty(doc)) {
       toast.error('Write something first.');
       return;
     }
     setPublishing(true);
     try {
       await saveMeta();
-      const result = await BlogService.publish(postId, body);
+      const result = await BlogService.publish(postId, doc!);
       toast.success(
         result.hasPaywall
           ? `Published, with a paywall. ${result.wordCount} words.`
@@ -175,7 +229,8 @@ function Editor() {
           ) : null}
           <button
             onClick={publish}
-            disabled={publishing}
+            disabled={publishing || !hasBody}
+            title={hasBody ? undefined : 'Write something to publish'}
             className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {publishing ? 'Publishing…' : post.status === 'published' ? 'Update' : 'Publish'}

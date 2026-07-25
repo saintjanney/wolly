@@ -21,23 +21,47 @@ import type { ComposerDoc } from '@/services/blogService';
  * of view, so it is treated as untrusted input there regardless.
  */
 
+/** True when a document has no text and no media worth publishing. */
+export function docIsEmpty(doc: ComposerDoc | null | undefined): boolean {
+  if (!doc) return true;
+
+  const hasSubstance = (nodes: unknown): boolean => {
+    if (!Array.isArray(nodes)) return false;
+    return nodes.some((raw) => {
+      const node = raw as { type?: string; text?: string; content?: unknown };
+      if (typeof node.text === 'string' && node.text.trim().length > 0) return true;
+      if (node.type === 'image') return true;
+      return hasSubstance(node.content);
+    });
+  };
+
+  return !hasSubstance((doc as { content?: unknown }).content);
+}
+
 export interface PostEditorProps {
   initialDoc?: ComposerDoc | null;
-  /** Debounced, for autosave. Not called on first render. */
+  /**
+   * Called on EVERY change, synchronously.
+   *
+   * Deliberately not debounced here. This callback is what keeps the parent's
+   * copy of the document current, and the parent publishes from that copy, so
+   * debouncing it meant a Publish click within the debounce window saw a stale
+   * (or null) document and was rejected as empty. The parent debounces its own
+   * network write instead; throttling belongs with the expensive operation, not
+   * with the state update.
+   */
   onChange?: (doc: ComposerDoc) => void;
-  autosaveDelayMs?: number;
   editable?: boolean;
 }
 
 export function PostEditor({
   initialDoc,
   onChange,
-  autosaveDelayMs = 10_000,
   editable = true,
 }: PostEditorProps) {
   const [hasPaywall, setHasPaywall] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latest = useRef<ComposerDoc | null>(null);
+  /** Guards the one-time load of a saved draft into a freshly created editor. */
+  const loadedInitial = useRef(false);
 
   const editor = useEditor({
     editable,
@@ -65,32 +89,28 @@ export function PostEditor({
     content: (initialDoc as object) ?? '',
     onUpdate: ({ editor: e }) => {
       const json = e.getJSON() as ComposerDoc;
-      latest.current = json;
       setHasPaywall(docHasPaywall(json as { content?: Array<{ type?: string }> }));
-
-      if (!onChange) return;
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => {
-        if (latest.current) onChange(latest.current);
-      }, autosaveDelayMs);
+      onChange?.(json);
     },
   });
 
-  // Flush any pending autosave on unmount so navigating away cannot lose the
-  // last few seconds of typing.
+  /**
+   * Loads a saved draft once the fetch resolves.
+   *
+   * `useEditor`'s `content` option is read only when the editor is created, and
+   * the editor is created on first render, before the draft has loaded. Without
+   * this the editor stayed empty when reopening an existing post, and the first
+   * keystroke would autosave that empty document over the saved draft, losing
+   * the author's work.
+   *
+   * `emitUpdate: false` keeps this from looking like an author edit and
+   * triggering a pointless save of what we just read.
+   */
   useEffect(() => {
-    return () => {
-      if (timer.current) {
-        clearTimeout(timer.current);
-        if (latest.current && onChange) onChange(latest.current);
-      }
-    };
-  }, [onChange]);
-
-  useEffect(() => {
-    if (editor && initialDoc) {
-      setHasPaywall(docHasPaywall(initialDoc as { content?: Array<{ type?: string }> }));
-    }
+    if (!editor || loadedInitial.current || !initialDoc) return;
+    loadedInitial.current = true;
+    editor.commands.setContent(initialDoc as never, { emitUpdate: false });
+    setHasPaywall(docHasPaywall(initialDoc as { content?: Array<{ type?: string }> }));
   }, [editor, initialDoc]);
 
   if (!editor) return <div className="min-h-64 animate-pulse rounded-lg bg-gray-100" />;
