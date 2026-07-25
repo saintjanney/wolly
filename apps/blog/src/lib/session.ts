@@ -1,30 +1,43 @@
 import 'server-only';
 
 import { cookies } from 'next/headers';
+import { getAuth } from 'firebase-admin/auth';
+
+import { adminApp } from './firebase-admin';
+
+/**
+ * The session cookie name.
+ *
+ * MUST be `__session`. Firebase Hosting strips every cookie except this one
+ * before forwarding a request to the backend, so any other name simply never
+ * arrives and the reader looks permanently logged out.
+ */
+export const SESSION_COOKIE = '__session';
+
+/** Two weeks, the maximum Firebase allows for a session cookie. */
+export const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
  * The viewing user's uid, or null for a logged-out reader.
  *
- * PHASE 1: always null. Every visitor is treated as logged out, which is the
- * correct default, free posts render for everyone and anything paywalled shows
- * the paywall. Nothing is leaked by this stub; it only means a paying
- * subscriber does not yet get their paid content on the website.
+ * `verifySessionCookie(cookie, true)` checks revocation as well as the
+ * signature, so signing out or disabling an account takes effect immediately
+ * rather than at expiry.
  *
- * PHASE 2 fills this in. The plan is a Firebase session cookie: the client
- * signs in (email link), posts its ID token to `/api/session`, and the server
- * mints a session cookie with `getAuth().createSessionCookie()`. This function
- * then verifies it with `verifySessionCookie(cookie, true)` and returns `uid`.
- *
- * It must stay the single source of viewer identity: `loadPostForViewer()` is
- * the only paywall enforcement point on this surface, and it trusts whatever
- * this returns.
+ * Any failure returns null. That under-grants rather than over-grants: a reader
+ * with a broken cookie sees the paywall instead of accidentally seeing paid
+ * content.
  */
 export async function getViewerUserId(): Promise<string | null> {
   const store = await cookies();
-  const session = store.get('__session');
-  if (!session) return null;
+  const cookie = store.get(SESSION_COOKIE)?.value;
+  if (!cookie) return null;
 
-  // Deliberately not verified yet. Returning null rather than trusting an
-  // unverified cookie is the safe direction: it under-grants, never over-grants.
-  return null;
+  try {
+    const decoded = await getAuth(adminApp()).verifySessionCookie(cookie, true);
+    return decoded.uid;
+  } catch {
+    // Expired, revoked, or forged.
+    return null;
+  }
 }
