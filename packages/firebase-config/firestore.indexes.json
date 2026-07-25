@@ -222,7 +222,17 @@
       ]
     },
     {
-      "_query": "creator-hub 'my posts' list",
+      "_query": "creator-hub 'my posts' list - blogService.listPosts",
+      "_note": "This is what listPosts actually filters on. An earlier version of this file only had ownerUserId+updatedAt, which does not serve a publicationId query, so the hub's post list failed with a missing-index error while the publication itself loaded fine.",
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "publicationId", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "_query": "posts by owner across publications (backoffice / future multi-publication)",
       "collectionGroup": "posts",
       "queryScope": "COLLECTION",
       "fields": [

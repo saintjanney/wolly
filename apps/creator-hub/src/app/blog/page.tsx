@@ -18,16 +18,43 @@ export default function BlogPage() {
   const [publication, setPublication] = useState<Publication | null>(null);
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
+  /**
+   * Set when the posts query itself failed.
+   *
+   * Kept separate from an empty list because showing "No posts yet" after a
+   * failed read tells the author their work is gone when it is not. That is
+   * exactly what happened when the publicationId+updatedAt index was missing:
+   * the publication rendered, the post list threw, and the page claimed there
+   * were no posts.
+   */
+  const [postsError, setPostsError] = useState<string | null>(null);
 
   useEffect(() => setPageTitle('Blog'), [setPageTitle]);
 
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    setPostsError(null);
     try {
       const pub = await BlogService.getMyPublication(user.uid);
       setPublication(pub);
-      setPosts(pub ? await BlogService.listPosts(pub.id) : []);
+
+      if (pub) {
+        // Load posts separately: a failure here must not be reported as
+        // "no publication", and must not masquerade as an empty list.
+        try {
+          setPosts(await BlogService.listPosts(pub.id));
+        } catch (error) {
+          console.error('Failed to load posts', error);
+          setPosts([]);
+          setPostsError(
+            error instanceof Error ? error.message : 'Could not load your posts.',
+          );
+          toast.error('Could not load your posts. Your drafts are safe.');
+        }
+      } else {
+        setPosts([]);
+      }
     } catch (error) {
       console.error('Failed to load blog', error);
       toast.error('Could not load your blog.');
@@ -81,7 +108,20 @@ export default function BlogPage() {
       </header>
 
       <section className="mt-8">
-        {posts.length === 0 ? (
+        {postsError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-6 py-8 text-center">
+            <p className="font-medium text-red-800">Could not load your posts.</p>
+            <p className="mt-1 text-sm text-red-700">
+              Nothing has been lost; this is a read failure, not missing data.
+            </p>
+            <button
+              onClick={load}
+              className="mt-4 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
+            >
+              Try again
+            </button>
+          </div>
+        ) : posts.length === 0 ? (
           <p className="rounded-lg border border-dashed border-gray-300 py-16 text-center text-gray-500">
             No posts yet. Write your first one.
           </p>
