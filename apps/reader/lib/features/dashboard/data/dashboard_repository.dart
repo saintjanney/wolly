@@ -3,6 +3,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:wolly_mobile/core/utils/user_fields.dart';
 import 'package:wolly_mobile/features/library/domain/models/book.dart';
 
+/// Home-screen data.
+///
+/// Returns empty lists when there is nothing to show. It used to substitute
+/// hardcoded sample books (The Great Gatsby, 1984, ...) whenever a query
+/// returned nothing or threw, which put books on the production home screen that
+/// do not exist: their download URLs return HTTP 403, so tapping one failed. The
+/// screens already render nothing for an empty list, so the fallback was worse
+/// than the behaviour it replaced, and it hid real query failures exactly the way
+/// the Library screen's swallowed error did.
 class DashboardRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -12,7 +21,7 @@ class DashboardRepository {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        return _getMockReadingProgress();
+        return [];
       }
 
       // Query user reading progress from Firestore
@@ -24,7 +33,7 @@ class DashboardRepository {
           .get();
 
       if (snapshot.docs.isEmpty) {
-        return _getMockReadingProgress();
+        return [];
       }
 
       // Convert documents to Book objects
@@ -62,10 +71,14 @@ class DashboardRepository {
         }
       }
       
-      return books.isNotEmpty ? books : _getMockReadingProgress();
+      return books;
     } catch (e) {
-      print('Error fetching reading progress: $e');
-      return _getMockReadingProgress();
+      assert(() {
+        // ignore: avoid_print
+        print('getUserReadingProgress failed: $e');
+        return true;
+      }());
+      return [];
     }
   }
 
@@ -74,7 +87,7 @@ class DashboardRepository {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        return _getMockRecommendations();
+        return [];
       }
 
       // Get user's genre preferences
@@ -103,7 +116,7 @@ class DashboardRepository {
       }
 
       if (booksSnapshot.docs.isEmpty) {
-        return _getMockRecommendations();
+        return [];
       }
 
       // Convert documents to Book objects
@@ -127,10 +140,14 @@ class DashboardRepository {
         ));
       }
       
-      return books.isNotEmpty ? books : _getMockRecommendations();
+      return books;
     } catch (e) {
-      print('Error fetching recommendations: $e');
-      return _getMockRecommendations();
+      assert(() {
+        // ignore: avoid_print
+        print('getBookRecommendations failed: $e');
+        return true;
+      }());
+      return [];
     }
   }
   
@@ -159,7 +176,11 @@ class DashboardRepository {
           
       return true;
     } catch (e) {
-      print('Error updating reading progress: $e');
+      assert(() {
+        // ignore: avoid_print
+        print('updateReadingProgress failed: $e');
+        return true;
+      }());
       return false;
     }
   }
@@ -174,79 +195,4 @@ class DashboardRepository {
       return 'unknown';
     }
   }
-  
-  // Mock data for reading progress when no data is available
-  List<Book> _getMockReadingProgress() {
-    return [
-      Book(
-        title: 'The Great Gatsby',
-        genre: 'JjumLduQCVjFIAPG27xK', // Fiction genre ID
-        downloadUrl: 'https://firebasestorage.googleapis.com/v0/b/wolly-1133d.appspot.com/o/epubs%2FThe%20Great%20Gatsby.epub?alt=media',
-        fileType: 'epub',
-        isPublished: true,
-        coverUrl: 'https://m.media-amazon.com/images/I/71FTb9X6wsL._AC_UF1000,1000_QL80_.jpg',
-        author: 'F. Scott Fitzgerald',
-        pagesRead: 120,
-        totalPages: 180,
-        lastRead: DateTime.now().subtract(const Duration(hours: 3)),
-        percentageComplete: 0.67,
-        description: 'The Great Gatsby is a 1925 novel by American writer F. Scott Fitzgerald.',
-        rating: 4.5,
-      ),
-      Book(
-        title: '1984',
-        genre: 'JjumLduQCVjFIAPG27xK', // Fiction genre ID
-        downloadUrl: 'https://firebasestorage.googleapis.com/v0/b/wolly-1133d.appspot.com/o/epubs%2F1984.epub?alt=media',
-        fileType: 'epub',
-        isPublished: true,
-        coverUrl: 'https://m.media-amazon.com/images/I/71kxa1-0mfL._AC_UF1000,1000_QL80_.jpg',
-        author: 'George Orwell',
-        pagesRead: 56,
-        totalPages: 328,
-        lastRead: DateTime.now().subtract(const Duration(days: 1)),
-        percentageComplete: 0.17,
-        description: 'A dystopian novel by English novelist George Orwell.',
-        rating: 4.7,
-      ),
-    ];
-  }
-  
-  // Mock data for recommendations when no data is available
-  List<Book> _getMockRecommendations() {
-    return [
-      Book(
-        title: 'Dune',
-        genre: 'xzSP0Qofj8S5Gwov40zw', // Science Fiction genre ID
-        downloadUrl: 'https://firebasestorage.googleapis.com/v0/b/wolly-1133d.appspot.com/o/epubs%2FDune.epub?alt=media',
-        fileType: 'epub',
-        isPublished: true,
-        coverUrl: 'https://m.media-amazon.com/images/I/A1u+2fY5yTL._AC_UF1000,1000_QL80_.jpg',
-        author: 'Frank Herbert',
-        description: 'Set on the desert planet Arrakis, Dune is the story of the boy Paul Atreides, heir to a noble family tasked with ruling an inhospitable world where the only thing of value is the "spice" melange.',
-        rating: 4.8,
-      ),
-      Book(
-        title: 'The Hobbit',
-        genre: 'JjumLduQCVjFIAPG27xK', // Fiction genre ID
-        downloadUrl: 'https://firebasestorage.googleapis.com/v0/b/wolly-1133d.appspot.com/o/epubs%2FThe%20Hobbit.epub?alt=media',
-        fileType: 'epub',
-        isPublished: true,
-        coverUrl: 'https://m.media-amazon.com/images/I/710+HcoP38L._AC_UF1000,1000_QL80_.jpg',
-        author: 'J.R.R. Tolkien',
-        description: 'Bilbo Baggins is a hobbit who enjoys a comfortable, unambitious life, rarely traveling any farther than his pantry or cellar. But his contentment is disturbed when the wizard Gandalf and a company of dwarves arrive on his doorstep.',
-        rating: 4.7,
-      ),
-      Book(
-        title: 'Pride and Prejudice',
-        genre: 'JjumLduQCVjFIAPG27xK', // Fiction genre ID
-        downloadUrl: 'https://firebasestorage.googleapis.com/v0/b/wolly-1133d.appspot.com/o/epubs%2FPride%20and%20Prejudice.epub?alt=media',
-        fileType: 'epub',
-        isPublished: true,
-        coverUrl: 'https://m.media-amazon.com/images/I/71Q1tPupKjL._AC_UF1000,1000_QL80_.jpg',
-        author: 'Jane Austen',
-        description: 'The story follows the main character, Elizabeth Bennet, as she deals with issues of manners, upbringing, morality, education, and marriage in the society of the landed gentry of the British Regency.',
-        rating: 4.5,
-      ),
-    ];
-  }
-} 
+}
