@@ -128,7 +128,7 @@ The blog needs per-reader topic interests for its feed. It should read
 `selectedGenres`, and `@wolly/schema` should be corrected to describe the
 documents that actually exist.
 
-### 1.5 BLOCKER: payments are not verified
+### 1.5 ~~BLOCKER~~ FIXED (2026-07-25): payments are now verified
 
 `PurchaseRepository.recordPurchase` writes the purchase document **client-side,
 immediately after launching a Paystack checkout URL**, with no confirmation the
@@ -138,12 +138,23 @@ payment succeeded. The deployed rule permits it:
 allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
 ```
 
-Any authenticated user can grant themselves any paid book by writing one
-document. For one-off book sales this is revenue leakage. **For recurring
-subscriptions it is disqualifying**: renewals happen off-device and there is no
-client present to write anything. Paid blog subscriptions require a server that
-verifies Paystack webhooks. This is the single largest piece of new
-infrastructure in this spec.
+Any authenticated user could grant themselves any paid book by writing one
+document, and the reader app did exactly that as soon as the checkout browser
+opened.
+
+**Fixed.** Purchases are now server-written only: rules deny every client write,
+`initializePaystackCheckout` creates the record as `pending`, and
+`verifyPaystackPayment` promotes it to `completed` only after confirming the
+transaction with Paystack and checking the amount. Verified by attempting the
+original exploit as a real signed-in user; all three write attempts are denied.
+
+**Still open, and it matters:** the book FILE is a Firebase Storage download URL
+with an access token, stored on the `epubs` document that any authenticated user
+can read. Anyone holding that URL can download a paid book without paying,
+verified by an unauthenticated fetch returning HTTP 200. Verifying the purchase
+record does not protect the content. Closing that needs short-lived signed URLs
+issued by a function after an ownership check, which is tracked as the next
+payment task.
 
 Related, lower severity: `AppConfig.paystackPublicKey` is a hardcoded `pk_live_`
 key and `paystackCurrency` is hardcoded `GHS`. Publishable keys are meant to be

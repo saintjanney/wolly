@@ -1,5 +1,3 @@
-import 'dart:ui' show PlatformDispatcher;
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -9,7 +7,13 @@ class PurchaseRepository {
 
   String? get _userId => _auth.currentUser?.uid;
 
-  /// Returns true if the current user already owns this book.
+  /// Whether the current user owns this book.
+  ///
+  /// Requires `status == 'completed'`. The mere existence of the document is NOT
+  /// ownership: `initializePaystackCheckout` creates it as `pending` before the
+  /// reader has paid anything, so treating existence as ownership would hand out
+  /// every book for free. A missing `status` is also treated as unpaid; no such
+  /// documents exist, and being strict is the safe direction.
   Future<bool> checkPurchase(String bookId) async {
     final uid = _userId;
     if (uid == null) return false;
@@ -19,40 +23,41 @@ class PurchaseRepository {
           .collection('purchases')
           .doc('${uid}_$bookId')
           .get();
-      return doc.exists;
+      if (!doc.exists) return false;
+      return doc.data()?['status'] == 'completed';
     } catch (_) {
       return false;
     }
   }
 
-  /// Records a completed purchase in Firestore.
-  Future<void> recordPurchase({
-    required String bookId,
-    required String bookTitle,
-    required String reference,
-    required int amountInPesewas,
-  }) async {
+  /// The reference of an in-flight checkout for this book, if there is one.
+  ///
+  /// Lets the app resume verification after being killed mid-payment: the
+  /// reference lives on the server-created pending document, so it does not
+  /// depend on the app keeping local state.
+  Future<String?> pendingReference(String bookId) async {
     final uid = _userId;
-    if (uid == null) return;
-
-    // Buyer's region from the device locale (e.g. 'GH', 'US') — powers the
-    // creator dashboard's geographic analytics.
-    final countryCode = PlatformDispatcher.instance.locale.countryCode;
-
-    await _firestore
-        .collection('purchases')
-        .doc('${uid}_$bookId')
-        .set({
-      'userId': uid,
-      'bookId': bookId,
-      'bookTitle': bookTitle,
-      'reference': reference,
-      'amountInPesewas': amountInPesewas,
-      'currency': 'GHS',
-      if (countryCode != null && countryCode.isNotEmpty) 'countryCode': countryCode,
-      'purchasedAt': Timestamp.now(),
-    });
+    if (uid == null) return null;
+    try {
+      final doc = await _firestore
+          .collection('purchases')
+          .doc('${uid}_$bookId')
+          .get();
+      final data = doc.data();
+      if (data == null || data['status'] == 'completed') return null;
+      return data['reference'] as String?;
+    } catch (_) {
+      return null;
+    }
   }
+
+  // recordPurchase() was removed deliberately.
+  //
+  // It wrote the purchase document from the client, and the caller invoked it as
+  // soon as the Paystack browser opened, so opening checkout granted ownership
+  // without paying. Security rules now deny client writes to `purchases`
+  // entirely; creation and completion belong to the functions in
+  // services/payments. See PaystackService.
 
   /// Returns full purchase history for the current user, newest first.
   Future<List<Map<String, dynamic>>> getPurchaseHistory() async {
@@ -82,6 +87,7 @@ class PurchaseRepository {
           .where('userId', isEqualTo: uid)
           .get();
       return snapshot.docs
+          .where((doc) => doc.data()['status'] == 'completed')
           .map((doc) => (doc.data()['bookId'] as String?) ?? '')
           .where((id) => id.isNotEmpty)
           .toList();

@@ -16,13 +16,17 @@ class BookDetailScreen extends StatefulWidget {
   State<BookDetailScreen> createState() => _BookDetailScreenState();
 }
 
-class _BookDetailScreenState extends State<BookDetailScreen> {
+class _BookDetailScreenState extends State<BookDetailScreen>
+    with WidgetsBindingObserver {
   final PurchaseRepository _purchaseRepo = PurchaseRepository();
   final FollowRepository _followRepo = FollowRepository();
 
   bool _checkingPurchase = true;
   bool _isPurchased = false;
   bool _purchasing = false;
+  /// Set while a checkout is in flight, so returning to the app can verify it.
+  String? _pendingReference;
+  bool _verifying = false;
   bool _descriptionExpanded = false;
   bool _isFollowing = false;
   bool _followLoading = false;
@@ -30,8 +34,67 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkOwnership();
     _checkFollow();
+    _resumePendingCheckout();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Verification happens when the reader comes back from the Paystack page.
+  ///
+  /// Deliberately not a deep link. Paystack redirects to a `wolly://` URL that
+  /// this app does not register, and mobile-money flows in particular often do
+  /// not return cleanly, so waiting for a callback would leave paid readers
+  /// stuck. Checking on resume works however they get back.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _verifyPendingPayment();
+  }
+
+  /// Recovers an in-flight checkout after the app was killed mid-payment. The
+  /// reference lives on the server-created pending document, not in app state.
+  Future<void> _resumePendingCheckout() async {
+    final reference = await _purchaseRepo.pendingReference(_effectiveBookId);
+    if (reference == null || !mounted) return;
+    setState(() => _pendingReference = reference);
+    await _verifyPendingPayment();
+  }
+
+  Future<void> _verifyPendingPayment() async {
+    final reference = _pendingReference;
+    if (reference == null || _verifying) return;
+
+    setState(() => _verifying = true);
+    final paid = await PaystackService.verifyPayment(
+      bookId: _effectiveBookId,
+      reference: reference,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _verifying = false;
+      _purchasing = false;
+      if (paid) {
+        _isPurchased = true;
+        _pendingReference = null;
+      }
+    });
+
+    if (paid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment confirmed. Enjoy your book.'),
+          backgroundColor: Color(0xFF4CAF50),
+        ),
+      );
+      _openReader();
+    }
   }
 
   Future<void> _checkFollow() async {
@@ -92,37 +155,42 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
 
     setState(() => _purchasing = true);
 
-    final bookId = _effectiveBookId;
-    final amountInPesewas = (widget.book.price * 100).round();
-    final reference = PaystackService.generateReference(bookId);
-
-    final success = await PaystackService.checkout(
-      context,
-      email: user.email ?? '',
-      amountInPesewas: amountInPesewas,
-      reference: reference,
-      bookTitle: widget.book.title,
-    );
-
-    if (!mounted) return;
-
-    if (success) {
-      await _purchaseRepo.recordPurchase(
-        bookId: bookId,
-        bookTitle: widget.book.title,
-        reference: reference,
-        amountInPesewas: amountInPesewas,
+    // The server decides everything: it validates the book, refuses duplicates
+    // and free books, creates the purchase as `pending`, and owns the
+    // reference. The client no longer computes an amount or a reference, and it
+    // cannot mark anything paid.
+    try {
+      final session = await PaystackService.startCheckout(
+        bookId: _effectiveBookId,
       );
-      setState(() { _isPurchased = true; _purchasing = false; });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Purchase successful! Enjoy your book 🎉'),
-          backgroundColor: Color(0xFF4CAF50),
-        ),
-      );
-      _openReader();
-    } else {
+      if (!mounted) return;
+
+      final opened = await PaystackService.openCheckout(session);
+      if (!mounted) return;
+
+      if (!opened) {
+        setState(() => _purchasing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the payment page.')),
+        );
+        return;
+      }
+
+      // Opening the browser is NOT a purchase. Hold the reference and confirm
+      // with the server when the reader returns.
+      setState(() => _pendingReference = session.reference);
+    } on PaystackError catch (e) {
+      if (!mounted) return;
       setState(() => _purchasing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _purchasing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not start checkout. Please try again.')),
+      );
     }
   }
 

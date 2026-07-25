@@ -106,10 +106,15 @@ service cloud.firestore {
     }
 
     // ── Commerce ───────────────────────────────────────────────────────────
-    // NOTE: `create` here is client-writable, which means a reader can grant
-    // themselves a book without paying. This is a known hole (BLOG_SPEC §1.5)
-    // and is closed in Phase 2, when purchases move behind a Paystack webhook
-    // and this becomes `allow create: if false`.
+    // Purchases are SERVER-WRITTEN ONLY.
+    //
+    // A client used to be able to create one, which meant a reader could grant
+    // themselves any paid book by writing a single document; the reader app did
+    // exactly that as soon as the checkout URL opened, without waiting for a
+    // payment. Creation now belongs to initializePaystackCheckout (as `pending`)
+    // and promotion to `completed` belongs to verifyPaystackPayment, which
+    // confirms the transaction with Paystack and checks the amount. Both use the
+    // Admin SDK, which bypasses these rules. See services/payments.
     match /purchases/{purchaseId} {
       allow read: if isAuthenticated() && (
         isOwner(resource.data.userId) ||
@@ -117,9 +122,7 @@ service cloud.firestore {
          get(/databases/$(database)/documents/epubs/$(resource.data.bookId)).data.ownerUserId == request.auth.uid)
       );
       allow read: if isAdmin();
-      allow create: if isAuthenticated()
-        && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if false;
+      allow create, update, delete: if false;
     }
 
     match /payouts/{payoutId} {

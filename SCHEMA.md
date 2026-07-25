@@ -73,7 +73,14 @@ contract (see `apps/creator-hub/src/services/bookService.ts`):
 
 - **`genres`**: `{ name, description?, slug?, bookCount?, isActive?, sortOrder? }` — doc id referenced by `epubs.genre`.
 - **`reviews`**: `{ bookId, userId, userName, rating(1–5), title?, content, isVerifiedPurchase, status: pending|approved|rejected|flagged, helpfulVotes, reportCount, createdAt, updatedAt }`.
-- **`purchases`**: `{ userId, bookId, bookTitle, ownerUserId?, reference, amountInPesewas, currency, countryCode?, purchasedAt }`.
+- **`purchases`**: `{ userId, bookId, bookTitle, ownerUserId?, reference,
+  amountInPesewas, currency, countryCode?, status, launchedAt, purchasedAt?,
+  gatewayResponse?, channel? }`. **Server-written only**; rules deny every
+  client write. `initializePaystackCheckout` creates it as `status: 'pending'`
+  and `verifyPaystackPayment` promotes it to `'completed'` after confirming the
+  transaction with Paystack and checking the amount (see `services/payments`).
+  **Only `'completed'` is ownership**: a pending document means checkout was
+  started, not paid.
 - **`reading_progress`** (id `${uid}_${bookId}`): `{ userId, bookId, pagesRead, totalPages, percentageComplete, lastRead }`.
 - **`bookmarks`**: `{ userId, bookId, bookTitle, page, chapterTitle?, note?, createdAt }`.
 - **`follows`**: `{ followerId, authorId, authorName, followedAt }`.
