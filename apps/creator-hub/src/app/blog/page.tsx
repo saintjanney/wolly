@@ -98,13 +98,21 @@ export default function BlogPage() {
             wolly.app/@{publication.slug} · {publication.subscriberCount} subscribers
           </p>
         </div>
-        <button
-          onClick={createDraft}
-          className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          <PlusIcon className="h-4 w-4" />
-          New post
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={() => router.push('/blog/settings')}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Settings
+          </button>
+          <button
+            onClick={createDraft}
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            <PlusIcon className="h-4 w-4" />
+            New post
+          </button>
+        </div>
       </header>
 
       <section className="mt-8">

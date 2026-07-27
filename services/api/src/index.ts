@@ -14,3 +14,4 @@ initializeApp({ storageBucket: 'wolly-1133d.appspot.com' });
 export { publishPost } from './publish';
 export { getBookDownloadUrl } from './download';
 export { paystackWebhook } from './paystack-webhook';
+export { initializeSubscription } from './subscribe';
