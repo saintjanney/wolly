@@ -15,3 +15,10 @@ export { publishPost } from './publish';
 export { getBookDownloadUrl } from './download';
 export { paystackWebhook } from './paystack-webhook';
 export { initializeSubscription } from './subscribe';
+export { grantComplimentarySubscription } from './comp';
+export {
+  onLikeWritten,
+  onCommentWritten,
+  onSubscriptionWritten,
+  onPostWritten,
+} from './counters';

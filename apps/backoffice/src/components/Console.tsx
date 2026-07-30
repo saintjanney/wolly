@@ -7,14 +7,18 @@ import { OverviewPanel } from './OverviewPanel';
 import { BooksPanel } from './BooksPanel';
 import { ReviewsPanel } from './ReviewsPanel';
 import { GenresPanel } from './GenresPanel';
+import { PostsPanel } from './PostsPanel';
+import { CommentsPanel } from './CommentsPanel';
 
-type Tab = 'overview' | 'books' | 'reviews' | 'genres';
+type Tab = 'overview' | 'books' | 'reviews' | 'genres' | 'posts' | 'comments';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'books', label: 'Books' },
   { key: 'reviews', label: 'Reviews' },
   { key: 'genres', label: 'Genres' },
+  { key: 'posts', label: 'Blog posts' },
+  { key: 'comments', label: 'Comments' },
 ];
 
 export function Console({ user }: { user: User }) {
@@ -57,6 +61,8 @@ export function Console({ user }: { user: User }) {
         {tab === 'books' && <BooksPanel />}
         {tab === 'reviews' && <ReviewsPanel />}
         {tab === 'genres' && <GenresPanel />}
+        {tab === 'posts' && <PostsPanel />}
+        {tab === 'comments' && <CommentsPanel />}
       </main>
     </div>
   );

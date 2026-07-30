@@ -1,5 +1,7 @@
 import {
   collection,
+  collectionGroup,
+  getDoc,
   getDocs,
   doc,
   updateDoc,
@@ -7,6 +9,7 @@ import {
   query,
   where,
   orderBy,
+  limit as fsLimit,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -17,6 +20,8 @@ import {
   type Review,
   type ReviewStatus,
   type Genre,
+  type BlogPost,
+  derivePubliclyReadable,
 } from '@wolly/schema';
 
 const slugify = (name: string) =>
@@ -143,4 +148,82 @@ function toMillis(value: unknown): number {
     return (value as { toMillis: () => number }).toMillis();
   }
   return 0;
+}
+
+
+// ── Blog moderation ────────────────────────────────────────────────────────
+
+/**
+ * Blog posts for the staff console.
+ *
+ * `flagged` means anything a human should look at: explicitly flagged, already
+ * removed, or carrying reader reports.
+ */
+export class BlogModeration {
+  static async listPosts(filter: 'flagged' | 'all'): Promise<BlogPost[]> {
+    const snap = await getDocs(collection(db, COLLECTIONS.POSTS));
+    const posts = snap.docs.map((d) => ({ ...(d.data() as BlogPost), id: d.id }));
+
+    const needsReview = (p: BlogPost) =>
+      p.moderationStatus === 'flagged' ||
+      p.moderationStatus === 'removed' ||
+      (p.reportCount ?? 0) > 0;
+
+    return (filter === 'all' ? posts : posts.filter(needsReview)).sort(
+      (a, b) => toMillis(b.createdAt) - toMillis(a.createdAt),
+    );
+  }
+
+  /**
+   * Sets a post's moderation state.
+   *
+   * `isPubliclyReadable` is recomputed with the SAME function the publish
+   * callable uses, because that single boolean is what security rules test.
+   * Setting moderationStatus without it would leave a removed post readable.
+   */
+  static async moderatePost(
+    postId: string,
+    moderationStatus: 'ok' | 'flagged' | 'removed',
+  ): Promise<void> {
+    const ref = doc(db, COLLECTIONS.POSTS, postId);
+    const snap = await getDoc(ref);
+    const status = (snap.data()?.status as BlogPost['status']) ?? 'draft';
+
+    await updateDoc(ref, {
+      moderationStatus,
+      isPubliclyReadable: derivePubliclyReadable(status, moderationStatus),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  /** Reported or hidden comments across every post. */
+  static async listReportedComments(): Promise<
+    Array<{ id: string; path: string; postId: string; userName: string; body: string; status: string; reportCount: number }>
+  > {
+    const snap = await getDocs(
+      query(collectionGroup(db, 'comments'), orderBy('reportCount', 'desc'), fsLimit(100)),
+    );
+    return snap.docs
+      .map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          path: d.ref.path,
+          postId: (data.postId as string) ?? '',
+          userName: (data.userName as string) ?? 'Reader',
+          body: (data.body as string) ?? '',
+          status: (data.status as string) ?? 'visible',
+          reportCount: (data.reportCount as number) ?? 0,
+        };
+      })
+      .filter((c) => c.reportCount > 0 || c.status !== 'visible');
+  }
+
+  /** Hides or restores a comment. Never deletes it. */
+  static async moderateComment(
+    path: string,
+    status: 'visible' | 'hidden' | 'removed',
+  ): Promise<void> {
+    await updateDoc(doc(db, path), { status, updatedAt: serverTimestamp() });
+  }
 }

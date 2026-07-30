@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { Paywall } from '@/components/Paywall';
+import { PostEngagement } from '@/components/PostEngagement';
 import {
   formatDate,
   getPostBySlug,
@@ -178,6 +179,13 @@ export default async function PostPage({ params }: Params) {
           dangerouslySetInnerHTML={{ __html: paidHtml }}
         />
       ) : null}
+
+      <PostEngagement
+        postId={post.id}
+        publicationId={post.publicationId}
+        publicationOwnerId={publication.ownerUserId}
+        initialLikeCount={post.likeCount ?? 0}
+      />
     </article>
   );
 }

@@ -10,6 +10,7 @@ import {
   type PostContent,
   type Publication,
   type Subscription,
+  type Tier,
 } from '@wolly/schema';
 
 import { adminDb } from './firebase-admin';
@@ -91,6 +92,20 @@ export async function listPublications(limit = 100): Promise<Publication[]> {
       .limit(limit)
       .get();
     return snap.docs.map((d) => ({ ...(d.data() as Publication), id: d.id }));
+  });
+}
+
+/** A publication's tiers, cheapest first. */
+export async function listTiers(publicationId: string): Promise<Tier[]> {
+  return listOrEmptyAtBuild('listTiers', async () => {
+    const snap = await adminDb()
+      .collection(COLLECTIONS.PUBLICATIONS)
+      .doc(publicationId)
+      .collection(SUBCOLLECTIONS.TIERS)
+      .get();
+    return snap.docs
+      .map((d) => ({ ...(d.data() as Tier), id: d.id }))
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.monthlyPrice - b.monthlyPrice);
   });
 }
 
