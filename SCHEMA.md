@@ -55,6 +55,38 @@ exactly these names, or the book will not render in the reader.
 `status` (`draft|review|approved|published|suspended|archived`),
 `publishingStatus`, `views`/`downloads`/`sales`/`revenue`, timestamps.
 
+### The press (`@wolly/converter`)
+
+An author uploads a manuscript (`.docx`, `.md`, `.txt`); the press typesets an
+EPUB and a PDF from it. It runs as a Firestore trigger, not a callable, because
+a long book takes minutes to press.
+
+| Field | Type | Written by | Notes |
+|---|---|---|---|
+| `conversionStatus` | `requested \| processing \| ready \| failed` | client writes **only** `requested`; converter owns the rest | Writing `requested` again is how a retry is requested |
+| `conversionError` | string | converter | Reader-facing reason, present only when `failed` |
+| `conversion` | `BookConversion` | converter | `fingerprint`, `contentSha256`, `sourceFormat`, `wordCount`, `chapterCount`, `warnings[]`, `pressedAt` |
+| `epubUrl` / `pdfUrl` | string | converter | Under `converted/`, which **no client can read**. Resolve via `getBookDownloadUrl({bookId, format})` |
+
+On success the press also overwrites `url` and `fileType` so the reader needs no
+change. Pressed files are **not** publicly readable: `storage.rules` denies
+`converted/**` outright and the bucket has no public IAM binding.
+
+### Rights
+
+| Field | Type | Written by | Notes |
+|---|---|---|---|
+| `rightsStatus` | `clear \| disputed \| revoked` | **server / admin only** | Absent means `clear` |
+| `rightsNote` | string | server / admin | Why the state changed |
+| `rightsUpdatedAt` | timestamp | server / admin | |
+
+`revoked` stops `getBookDownloadUrl` issuing any new link, to everyone including
+the author. It cannot delete copies already downloaded; see
+[RIGHTS.md](RIGHTS.md) for what is and is not enforceable.
+
+Security rules deny clients every field in this section and in `conversion`. An
+author who could write `rightsStatus` could clear their own takedown.
+
 ### Creator-hub → reader field mapping
 
 When the creator-hub publishes, it maps its internal fields to the reader
@@ -63,11 +95,11 @@ contract (see `apps/creator-hub/src/services/bookService.ts`):
 | Creator-hub field | → `epubs` field |
 |---|---|
 | `authorName` | `author` (+ keep `authorName`) |
-| `manuscriptUrl` | `url` (+ keep `manuscriptUrl`) |
+| `manuscriptUrl` | `url` (+ keep `manuscriptUrl`), then **overwritten by the press** |
 | `coverImageUrl` | `coverUrl` (+ keep `coverImageUrl`) |
 | `averageRating` | `rating` |
 | first selected category → resolved genre id | `genre` |
-| derived from manuscript file extension | `fileType` |
+| derived from manuscript file extension | `fileType`, then **overwritten by the press** |
 
 ## Other collections
 

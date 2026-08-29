@@ -84,6 +84,22 @@
       "predeploy": [
         "sh services/payments/predeploy-guard.sh"
       ]
+    },
+    {
+      "source": "services/converter",
+      "codebase": "converter",
+      "predeploy": [
+        "npm --workspace @wolly/converter run build"
+      ],
+      "ignore": [
+        "node_modules",
+        ".git",
+        "*.log",
+        "src",
+        "test",
+        "tsconfig.json",
+        "eslint.config.mjs"
+      ]
     }
   ]
 }

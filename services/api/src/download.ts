@@ -48,20 +48,66 @@ export const getBookDownloadUrl = onCall(
 
     const book = snap.data() as {
       url?: string;
+      epubUrl?: string;
+      pdfUrl?: string;
       isFree?: boolean;
       price?: number;
       isPublished?: boolean;
       ownerUserId?: string;
+      rightsStatus?: string;
     };
 
-    const storedUrl = book.url;
+    // Which pressing to hand back. The press produces both an EPUB and a PDF,
+    // and both live under `converted/`, which no client can read directly, so
+    // asking for the PDF has to come through here too. Omitting `format` keeps
+    // the original behaviour of serving whatever `url` points at, which is what
+    // the reader does and what unpressed and external books still need.
+    const format = (request.data?.format ?? '') as string;
+    const storedUrl =
+      format === 'pdf'
+        ? (book.pdfUrl ?? book.url)
+        : format === 'epub'
+          ? (book.epubUrl ?? book.url)
+          : book.url;
+
     if (!storedUrl) {
-      throw new HttpsError('failed-precondition', 'This book has no file.');
+      throw new HttpsError(
+        'failed-precondition',
+        format === 'pdf'
+          ? 'This book has no PDF edition.'
+          : 'This book has no file.',
+      );
     }
 
     const isOwner = book.ownerUserId === uid;
     if (book.isPublished !== true && !isOwner) {
       throw new HttpsError('permission-denied', 'This book is not available.');
+    }
+
+    // ── Rights ─────────────────────────────────────────────────────────────
+    //
+    // This is the whole of what "taking a book down" can enforce, and it is
+    // worth being precise about its limits. Revoking stops this function
+    // issuing any new signed link, so the book cannot be fetched or re-fetched
+    // by anyone, the owner included. It does NOT reach copies already on
+    // someone's device: an EPUB or PDF is an open format with no callback, and
+    // any claim to delete one remotely would be false. Revocation closes the
+    // tap; it does not empty the bucket. See RIGHTS.md.
+    //
+    // Checked AFTER the ownership check so the owner is told the real reason
+    // rather than "not available", and BEFORE entitlement so a paying reader
+    // is not told to buy a book that is frozen anyway.
+    if (book.rightsStatus === 'revoked') {
+      throw new HttpsError(
+        'permission-denied',
+        'This book has been withdrawn over a rights claim and cannot be downloaded.',
+      );
+    }
+    if (book.rightsStatus === 'disputed' && !isOwner) {
+      throw new HttpsError(
+        'permission-denied',
+        'This book is temporarily unavailable while a rights claim is reviewed.',
+      );
     }
 
     // ── Entitlement ────────────────────────────────────────────────────────

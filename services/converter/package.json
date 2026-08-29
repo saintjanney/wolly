@@ -1,0 +1,35 @@
+{
+  "name": "@wolly/converter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Manuscript-to-EPUB/PDF conversion service. Wolly's publishing press.",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "npm run build && node --test --test-concurrency=1 test/convert.test.js test/epubcheck.test.js test/pdf.test.js",
+    "trace": "node tools/trace.js"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "^131.0.0",
+    "firebase-admin": "^13.6.1",
+    "firebase-functions": "^6.5.0",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.11.0",
+    "marked": "^15.0.0",
+    "pdf-lib": "^1.17.1",
+    "puppeteer-core": "^23.11.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "fast-xml-parser": "^4.5.0",
+    "puppeteer": "^23.11.0",
+    "typescript": "^5",
+    "typescript-eslint": "^8.0.0"
+  }
+}

@@ -24,7 +24,8 @@ import {
 import { StarIcon as StarIconSolid, ClockIcon as ClockIconSolid, CheckCircleIcon as CheckCircleIconSolid } from '@heroicons/react/24/solid';
 import toast from 'react-hot-toast';
 import BookCreationDialog from '@/components/book-creation/BookCreationDialog';
-import { BookOpenIcon } from '@heroicons/react/24/outline';
+import { ManuscriptDialog } from '@/components/book-creation/ManuscriptDialog';
+import { BookOpenIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
 interface BookRow {
   title: string;
@@ -42,6 +43,7 @@ export default function BooksPage() {
   const [isCreateBookDialogOpen, setIsCreateBookDialogOpen] = useState(false);
   const [hoveredBook, setHoveredBook] = useState<string | null>(null);
   const [editingBook, setEditingBook] = useState<PlatformBook | null>(null);
+  const [manuscriptBook, setManuscriptBook] = useState<PlatformBook | null>(null);
 
   // Set page title
   useEffect(() => {
@@ -92,6 +94,11 @@ export default function BooksPage() {
     e.stopPropagation();
     setEditingBook(book);
     setIsCreateBookDialogOpen(true);
+  }, []);
+
+  const handleManuscript = useCallback((book: PlatformBook, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setManuscriptBook(book);
   }, []);
 
   // Organize books into rows
@@ -259,11 +266,27 @@ export default function BooksPage() {
             currencySymbol={userCurrencySymbol}
             onEdit={handleEditBook}
             onDelete={handleDeleteBook}
+            onManuscript={handleManuscript}
             hoveredBook={hoveredBook}
             setHoveredBook={setHoveredBook}
           />
         ))}
       </div>
+
+      {manuscriptBook && user ? (
+        <ManuscriptDialog
+          bookId={manuscriptBook.id}
+          bookTitle={manuscriptBook.title}
+          userId={user.uid}
+          open
+          onClose={() => {
+            setManuscriptBook(null);
+            // The press rewrites url, fileType and the conversion record, so the
+            // list is stale once a pressing finishes.
+            void loadBooks();
+          }}
+        />
+      ) : null}
 
       {/* Floating Action Button */}
       <button
@@ -297,18 +320,20 @@ function BookRow({
   color,
   books, 
   currencySymbol,
-  onEdit, 
+  onEdit,
   onDelete,
+  onManuscript,
   hoveredBook,
-  setHoveredBook 
-}: { 
-  title: string; 
+  setHoveredBook
+}: {
+  title: string;
   icon: React.ComponentType<{ className?: string }>;
-  color: string; 
-  books: PlatformBook[]; 
+  color: string;
+  books: PlatformBook[];
   currencySymbol: string;
   onEdit: (book: PlatformBook, e: React.MouseEvent) => void;
   onDelete: (book: PlatformBook, e: React.MouseEvent) => void;
+  onManuscript: (book: PlatformBook, e: React.MouseEvent) => void;
   hoveredBook: string | null;
   setHoveredBook: (id: string | null) => void;
 }) {
@@ -424,6 +449,13 @@ function BookRow({
                         title="Edit book"
                       >
                         <PencilIcon className="w-5 h-5 text-gray-900" />
+                      </button>
+                      <button
+                        onClick={(e) => onManuscript(book, e)}
+                        className="p-3 bg-white rounded-xl hover:scale-110 transition-transform shadow-xl"
+                        title="Manuscript & formats"
+                      >
+                        <DocumentTextIcon className="w-5 h-5 text-gray-900" />
                       </button>
                       <button
                         className="p-3 bg-white rounded-xl hover:scale-110 transition-transform shadow-xl"

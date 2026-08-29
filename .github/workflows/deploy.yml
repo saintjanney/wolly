@@ -149,12 +149,16 @@ jobs:
       # them as removed and offer to delete live payment functions. Omitting
       # --force means such a deploy fails rather than deletes, but do not rely
       # on that: keep the scope.
+      # The `converter` codebase is the manuscript press. It bundles
+      # @sparticuz/chromium (a serverless Chromium) and so is a large, slow
+      # deploy; it is scoped alongside `api` for the same reason `api` is
+      # scoped, not because they are related.
       - name: Deploy server functions
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
         run: |
           npx firebase-tools deploy \
-            --only functions:api \
+            --only functions:api,functions:converter \
             --project "$FIREBASE_PROJECT" --non-interactive
 
   # ── Mobile + reader web: Flutter ────────────────────────────────────────────

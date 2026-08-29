@@ -11,10 +11,15 @@ service firebase.storage {
         false
       );
       
-      // Allow write (upload/delete) only if user owns the path
+      // Allow write (upload/delete) only if user owns the path.
+      //
+      // text/plain and text/markdown are accepted because the press takes .txt
+      // and .md manuscripts as well as Word documents. The creator-hub sets the
+      // content type explicitly on upload, since browsers report an empty type
+      // for .md often enough to break the upload otherwise.
       allow write: if request.auth != null && request.auth.uid == userId
         && request.resource.size < 50 * 1024 * 1024  // 50MB limit
-        && request.resource.contentType.matches('image/.*|application/pdf|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        && request.resource.contentType.matches('image/.*|application/pdf|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document|text/plain|text/markdown');
       
       // Allow delete only if user owns the file
       allow delete: if request.auth != null && request.auth.uid == userId;
@@ -27,6 +32,21 @@ service firebase.storage {
         && request.resource.size < 5 * 1024 * 1024  // 5MB limit
         && request.resource.contentType.matches('image/.*');
       allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Books pressed by @wolly/converter.
+    //
+    // DENIED TO EVERY CLIENT, deliberately and explicitly. These are the
+    // finished EPUB and PDF, including paid books, and the only legitimate way
+    // to obtain one is the `getBookDownloadUrl` function, which checks purchase
+    // entitlement and rights status and then issues a 15-minute signed URL.
+    // The bucket also has no public IAM binding, so the storage.googleapis.com
+    // form of these paths is not readable either.
+    //
+    // This block grants nothing; it exists so the reason is written down at the
+    // path itself, and so a later permissive wildcard has to argue with it.
+    match /converted/{allPaths=**} {
+      allow read, write: if false;
     }
 
     // Blog media (cover art and inline post images).

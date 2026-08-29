@@ -21,10 +21,40 @@ jobs:
         run: npx tsc --noEmit -p packages/schema/tsconfig.json
       - name: Lint
         run: npm run lint
-      # Includes the adversarial tests for the post renderer. That renderer's
-      # output is injected with dangerouslySetInnerHTML on an origin shared by
-      # every publication, so treat a failure here as a security regression
-      # rather than a flaky test.
+      # The manuscript press needs a real browser to typeset PDFs. `npm ci` runs
+      # puppeteer's install script, which downloads one; this makes the path
+      # explicit so a failure here says "no browser" rather than surfacing later
+      # as an opaque spawn error inside a test.
+      - name: Install Chrome for the press
+        run: npx puppeteer browsers install chrome
+
+      # epubcheck is the W3C reference validator and the authority the reading
+      # systems follow. It is installed rather than optional because the
+      # converter's own structural tests once passed on books that were invalid:
+      # the NCX and OPF carried different identifiers, which only epubcheck
+      # caught. Without it here, that class of defect ships.
+      - name: Install epubcheck
+        run: |
+          curl -sSL -o /tmp/epubcheck.zip \
+            https://github.com/w3c/epubcheck/releases/download/v5.3.0/epubcheck-5.3.0.zip
+          unzip -q /tmp/epubcheck.zip -d /opt
+          printf '#!/bin/sh\nexec java -jar /opt/epubcheck-5.3.0/epubcheck.jar "$@"\n' \
+            | sudo tee /usr/local/bin/epubcheck >/dev/null
+          sudo chmod +x /usr/local/bin/epubcheck
+          epubcheck --version
+
+      # poppler gives `pdffonts` / `pdftotext`, which is how the press proves
+      # its PDFs embed Wolly's own typefaces. Without it that check skips, and
+      # the failure it guards against (a font that exists on a developer's Mac
+      # but not in the container) is invisible until a reader sees the book.
+      - name: Install poppler
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+
+      # Includes the adversarial tests for the post renderer and for the
+      # manuscript sanitizer. Both render untrusted input: the post renderer via
+      # dangerouslySetInnerHTML on a shared origin, the manuscript sanitizer into
+      # EPUB XHTML and into Chromium during PDF generation. Treat a failure in
+      # either as a security regression rather than a flaky test.
       - name: Test
         run: npm run test
       - name: Build web apps

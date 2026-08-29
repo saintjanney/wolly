@@ -512,8 +512,21 @@ export class BookService {
 
       if (manuscriptUrl) {
         bookDataRaw.manuscriptUrl = manuscriptUrl;
+
+        // `url` points at the raw manuscript only until the press replaces it.
+        //
+        // Asking for a pressing is a single field: the converter is a Firestore
+        // trigger on `conversionStatus`, because typesetting a long book takes
+        // minutes and would outlive a callable's client timeout. When it
+        // finishes it overwrites `url` and `fileType` with the pressed EPUB and
+        // adds `epubUrl` / `pdfUrl`. Security rules allow a client to write
+        // only the value 'requested', so this cannot declare a book finished.
+        //
+        // Until then the book is a draft, so nothing reads `url` yet: going
+        // live is a separate backoffice action.
         bookDataRaw.url = manuscriptUrl;
-        console.log('📝 Adding manuscriptUrl/url to book document');
+        bookDataRaw.conversionStatus = 'requested';
+        console.log('📝 Adding manuscriptUrl/url + requesting a pressing');
       }
 
       // Remove all undefined and null values recursively
