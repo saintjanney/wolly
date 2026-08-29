@@ -171,8 +171,21 @@ jobs:
       - name: Install Firebase CLI
         run: npm i -g firebase-tools@14
 
+      # PINNED, not `channel: stable`.
+      #
+      # Tracking stable unpinned meant Flutter's toolchain floors moved without
+      # any change on our side, and each one only surfaced after the previous was
+      # cleared: Gradle 8.9 -> 8.14, then AGP 8.7 -> 8.11.1, then Kotlin 2.1 ->
+      # 2.2.20, and finally a transitive flutter_html that does not compile on the
+      # newer Dart SDK. None of it was reproducible locally, because a developer's
+      # Flutter is whatever they installed.
+      #
+      # Pinning makes CI match a version the change was actually verified against,
+      # and turns Flutter upgrades into a deliberate commit that can be tested,
+      # rather than an ambush on an unrelated deploy.
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.44.2'
           channel: stable
           cache: true
 
