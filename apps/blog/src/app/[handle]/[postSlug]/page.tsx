@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { Paywall } from '@/components/Paywall';
+import { PostEngagement } from '@/components/PostEngagement';
 import {
   formatDate,
   getPostBySlug,
@@ -14,7 +15,24 @@ import {
 } from '@/lib/blog-data';
 import { getViewerUserId } from '@/lib/session';
 
-export const revalidate = 3600;
+/**
+ * NEVER cache this route.
+ *
+ * This page renders per-viewer: a paying subscriber gets the paid segment, and
+ * everyone else gets the paywall. Under ISR a copy rendered for a subscriber
+ * could be served from the shared cache to anyone, which would leak paid content
+ * to the whole internet.
+ *
+ * Reading cookies already forces dynamic rendering in Next 15, so this is
+ * belt-and-braces, but a security property should not depend on a framework
+ * implementation detail that could change on an upgrade. `force-dynamic` plus
+ * `no-store` states the requirement outright.
+ *
+ * The publication home page and archive keep their ISR: they render only post
+ * metadata, which is identical for every viewer.
+ */
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'default-no-store';
 
 type Params = { params: Promise<{ handle: string; postSlug: string }> };
 
@@ -161,6 +179,13 @@ export default async function PostPage({ params }: Params) {
           dangerouslySetInnerHTML={{ __html: paidHtml }}
         />
       ) : null}
+
+      <PostEngagement
+        postId={post.id}
+        publicationId={post.publicationId}
+        publicationOwnerId={publication.ownerUserId}
+        initialLikeCount={post.likeCount ?? 0}
+      />
     </article>
   );
 }

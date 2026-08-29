@@ -594,6 +594,21 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "_query": "a post's comment thread (subcollection scope, PostEngagement.tsx)",
+      "collectionGroup": "comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

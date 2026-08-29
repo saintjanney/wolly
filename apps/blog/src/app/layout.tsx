@@ -3,6 +3,8 @@ import Link from 'next/link';
 
 import './globals.css';
 import { siteOrigin } from '@/lib/blog-data';
+import { AuthProvider } from '@/components/AuthProvider';
+import { HeaderAuth } from '@/components/HeaderAuth';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteOrigin()),
@@ -19,16 +21,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
+        <AuthProvider>
         <div className="min-h-screen flex flex-col">
           <header className="border-b border-[var(--wolly-rule)]">
             <div className="mx-auto max-w-3xl px-5 h-14 flex items-center justify-between">
               <Link href="/" className="font-semibold tracking-tight text-lg">
                 Wolly
               </Link>
-              <nav className="text-sm text-[var(--wolly-muted)]">
+              <nav className="flex items-center gap-4 text-sm text-[var(--wolly-muted)]">
                 <Link href="/discover" className="hover:text-[var(--wolly-ink)]">
                   Discover
                 </Link>
+                <HeaderAuth />
               </nav>
             </div>
           </header>
@@ -41,6 +45,7 @@ export default function RootLayout({
             </div>
           </footer>
         </div>
+        </AuthProvider>
       </body>
     </html>
   );

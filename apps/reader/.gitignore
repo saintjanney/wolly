@@ -31,8 +31,14 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
-/pubspec.lock
-**/pubspec.lock
+# /pubspec.lock  (committed on purpose; see the note below)
+# pubspec.lock IS committed. This is an application, not a package, and Dart's
+# own guidance is to commit the lockfile for apps so every build resolves to the
+# same versions. Ignoring it meant CI resolved dependencies fresh on every run:
+# `html` 0.15.7 was published on 2026-08-28 and broke the transitive
+# flutter_html, so the reader build failed in CI while succeeding locally on the
+# 0.15.6 my lockfile had. Committing it makes "works locally" mean something.
+# **/pubspec.lock
 
 # Symbolication related
 app.*.symbols

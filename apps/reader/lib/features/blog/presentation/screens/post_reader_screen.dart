@@ -7,6 +7,7 @@ import 'package:wolly_mobile/features/blog/domain/blog_event.dart';
 import 'package:wolly_mobile/features/blog/domain/blog_state.dart';
 import 'package:wolly_mobile/features/blog/domain/models/blog_post.dart';
 import 'package:wolly_mobile/features/blog/presentation/bloc/blog_bloc.dart';
+import 'package:wolly_mobile/features/blog/presentation/screens/subscribe_screen.dart';
 
 /// Reads a single post. Reuses the feed's BlogBloc so the open-post state lives
 /// in one place; dispatches [OpenPost] on init to load the body.
@@ -141,7 +142,10 @@ class _PostBody extends StatelessWidget {
         return [
           _Html(state.freeHtml),
           const SizedBox(height: 8),
-          _PaywallCard(slug: post.publicationSlug),
+          _PaywallCard(
+            slug: post.publicationSlug,
+            publicationId: post.publicationId,
+          ),
         ];
     }
   }
@@ -172,8 +176,9 @@ class _Html extends StatelessWidget {
 /// the paid HTML was never sent, because the rules denied the read.
 class _PaywallCard extends StatelessWidget {
   final String slug;
+  final String publicationId;
 
-  const _PaywallCard({required this.slug});
+  const _PaywallCard({required this.slug, required this.publicationId});
 
   @override
   Widget build(BuildContext context) {
@@ -205,11 +210,9 @@ class _PaywallCard extends StatelessWidget {
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () {
-              // Paid checkout is Phase 2 (Paystack via the server). Surface the
-              // intent rather than pretending it works.
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Paid subscriptions are coming soon.'),
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SubscribeScreen(publicationId: publicationId),
                 ),
               );
             },

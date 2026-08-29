@@ -20,7 +20,8 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore';
  * `applicationDefault()`. Locally, set GOOGLE_APPLICATION_CREDENTIALS to a
  * service-account path, or FIREBASE_SERVICE_ACCOUNT to the JSON itself.
  */
-function initAdminApp(): App {
+/** The shared Admin app. Initialised once per server instance. */
+export function adminApp(): App {
   const existing = getApps();
   if (existing.length) return existing[0];
 
@@ -41,7 +42,7 @@ let cached: Firestore | undefined;
 
 export function adminDb(): Firestore {
   if (!cached) {
-    cached = getFirestore(initAdminApp());
+    cached = getFirestore(adminApp());
     // Treat `undefined` as "field absent" rather than throwing, matching how
     // the client SDK behaves in the other apps.
     cached.settings({ ignoreUndefinedProperties: true });
