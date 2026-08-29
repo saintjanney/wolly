@@ -14,6 +14,47 @@ export type BookStatus =
 
 export type RoyaltyOption = '35%' | '70%';
 
+/** Manuscript formats the press accepts. Anything else is refused on upload. */
+export type ManuscriptFormat = 'docx' | 'markdown' | 'text';
+
+/**
+ * Where a book sits in the manuscript -> EPUB/PDF pipeline.
+ *
+ * The creator-hub writes `requested`; the converter owns every later value.
+ * Writing `requested` again is how a failed conversion is retried.
+ */
+export type ConversionStatus = 'requested' | 'processing' | 'ready' | 'failed';
+
+/**
+ * Rights state for a published book, checked at the delivery gate.
+ *
+ * `revoked` does not and cannot delete copies already downloaded. What it does
+ * is refuse to issue any new download link, which is the only enforcement point
+ * that actually exists for an open format. See RIGHTS.md.
+ */
+export type RightsStatus = 'clear' | 'disputed' | 'revoked';
+
+/**
+ * The record of one pressing, written by @wolly/converter.
+ *
+ * `fingerprint` is the value stamped into the EPUB package metadata, the
+ * colophon page and the PDF document info. A file found in the wild is matched
+ * back to this record, and through it to the book.
+ */
+export interface BookConversion {
+  /** Unique per pressing, e.g. `wolly-<uuid>`. */
+  fingerprint: string;
+  /** SHA-256 of the pressed EPUB and PDF, for tamper checking. */
+  contentSha256: string;
+  sourceFormat: ManuscriptFormat;
+  wordCount: number;
+  chapterCount: number;
+  /** Non-fatal notes for the author (dropped image types, and so on). */
+  warnings: string[];
+  /** ISO 8601. */
+  pressedAt: string;
+}
+
 export type BookType = 'ebook' | 'paperback' | 'hardcover' | 'audiobook';
 
 export interface DistributionChannels {
@@ -96,6 +137,28 @@ export interface EpubBook {
   manuscriptUrl?: string;
   coverImageUrl?: string;
   sampleUrl?: string;
+
+  // ── The press (@wolly/converter) ─────────────────────────────────────────
+  /**
+   * Set to `requested` by the creator-hub to ask for a pressing. The converter
+   * function is triggered by this field and owns every value after that.
+   */
+  conversionStatus?: ConversionStatus;
+  /** Reader-facing reason a pressing failed. Present only when `failed`. */
+  conversionError?: string;
+  /** Details of the successful pressing. Present only when `ready`. */
+  conversion?: BookConversion;
+  /** Pressed EPUB. `url` also points here so the reader needs no change. */
+  epubUrl?: string;
+  /** Pressed PDF, offered alongside the EPUB. */
+  pdfUrl?: string;
+
+  // ── Rights ───────────────────────────────────────────────────────────────
+  /** Absent means `clear`. `revoked` stops the delivery gate issuing links. */
+  rightsStatus?: RightsStatus;
+  /** Why the rights state changed, shown to staff in the backoffice. */
+  rightsNote?: string;
+  rightsUpdatedAt?: FirestoreTimestamp;
   aiGenerated?: boolean;
   aiUsageDescription?: string;
   aiToolUsed?: string;

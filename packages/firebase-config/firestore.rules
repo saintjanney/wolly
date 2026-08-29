@@ -53,6 +53,45 @@ service cloud.firestore {
             && request.resource.data.ownerUserId.size() > 0);
     }
 
+    /**
+     * Book fields only the server may write.
+     *
+     * `rightsStatus` is the one that matters most: it is what a takedown sets,
+     * and if the book's own author could write it, they could clear their own
+     * revocation and the takedown would be decoration. `conversion` holds the
+     * forensic pressing record used to trace a leaked file back to a copy, so a
+     * client that could forge it could disown its own book. The converter and
+     * the backoffice write these through the Admin SDK, which bypasses rules.
+     */
+    function serverOwnedBookFields() {
+      return [
+        'conversion',
+        'conversionError',
+        'epubUrl',
+        'pdfUrl',
+        'rightsStatus',
+        'rightsNote',
+        'rightsUpdatedAt'
+      ];
+    }
+
+    function writesServerOwnedBookFields() {
+      return request.resource.data.diff(resource.data)
+        .affectedKeys().hasAny(serverOwnedBookFields());
+    }
+
+    /**
+     * An author may ASK for a pressing, and nothing more. `requested` is the
+     * only value a client may write; the converter owns 'processing', 'ready'
+     * and 'failed'. Without this an author could mark a book 'ready' with a
+     * `url` of their choosing and never go through the press at all.
+     */
+    function conversionStatusIsRequestOnly() {
+      return !request.resource.data.diff(resource.data)
+          .affectedKeys().hasAny(['conversionStatus'])
+        || request.resource.data.conversionStatus == 'requested';
+    }
+
     // ── Reference data (read-only to clients) ───────────────────────────────
     match /countries/{countryId} {
       allow read: if isAuthenticated();
@@ -97,10 +136,15 @@ service cloud.firestore {
 
       allow create: if isAuthenticated()
         && request.resource.data.ownerUserId == request.auth.uid
-        && publishedImpliesOwned();
+        && publishedImpliesOwned()
+        && !request.resource.data.keys().hasAny(serverOwnedBookFields())
+        && (!('conversionStatus' in request.resource.data)
+            || request.resource.data.conversionStatus == 'requested');
       allow update: if isAuthenticated()
         && isOwner(resource.data.ownerUserId)
-        && publishedImpliesOwned();
+        && publishedImpliesOwned()
+        && !writesServerOwnedBookFields()
+        && conversionStatusIsRequestOnly();
       allow update: if isAdmin();
       allow delete: if isAuthenticated() && isOwner(resource.data.ownerUserId);
     }

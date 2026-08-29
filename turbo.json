@@ -9,7 +9,8 @@
         ".next/**",
         "!.next/cache/**",
         "out/**",
-        "dist/**"
+        "dist/**",
+        "lib/**"
       ]
     },
     "dev": {
@@ -27,6 +28,7 @@
   "globalPassThroughEnv": [
     "GOOGLE_APPLICATION_CREDENTIALS",
     "FIREBASE_SERVICE_ACCOUNT",
-    "GCLOUD_PROJECT"
+    "GCLOUD_PROJECT",
+    "PUPPETEER_EXECUTABLE_PATH"
   ]
 }

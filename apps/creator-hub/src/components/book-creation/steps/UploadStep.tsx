@@ -30,11 +30,20 @@ export function UploadStep() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // Allowed manuscript file extensions
-  const allowedManuscriptExtensions = ['.pdf', '.epub', '.docx', '.doc'];
-  
-  // Allowed cover file extensions (matching UI text: JPG, PNG, or PDF)
-  const allowedCoverExtensions = ['.jpg', '.jpeg', '.png', '.pdf'];
+  // Formats the press can actually typeset.
+  //
+  // This list used to advertise .pdf, .epub and .doc as well. None of them
+  // work: the press reads a manuscript and lays out both editions itself, so a
+  // PDF or EPUB has nothing left to typeset, and a legacy .doc is a binary
+  // format it cannot parse. Storage rules reject application/epub+zip outright,
+  // so an .epub upload failed with a permission error that told the author
+  // nothing. Offering a format the pipeline refuses is worse than not offering
+  // it: the author only finds out after uploading their book.
+  const allowedManuscriptExtensions = ['.docx', '.md', '.markdown', '.txt'];
+
+  // Cover images. PDF is not among them: a cover URL is rendered with
+  // Image.network in the reader, and a PDF cover shows as a broken image.
+  const allowedCoverExtensions = ['.jpg', '.jpeg', '.png'];
 
   // Validate file extension manually as a safety check
   const validateFileExtension = (file: File, allowedExtensions: string[]): boolean => {
@@ -112,10 +121,9 @@ export function UploadStep() {
     onDropAccepted: onManuscriptDropAccepted,
     onDropRejected: onManuscriptDropRejected,
     accept: {
-      'application/pdf': ['.pdf'],
-      'application/epub+zip': ['.epub'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'application/msword': ['.doc']
+      'text/markdown': ['.md', '.markdown'],
+      'text/plain': ['.txt']
     },
     multiple: false,
     maxFiles: 1
@@ -126,8 +134,7 @@ export function UploadStep() {
     onDropRejected: onCoverDropRejected,
     accept: {
       'image/jpeg': ['.jpg', '.jpeg'],
-      'image/png': ['.png'],
-      'application/pdf': ['.pdf']
+      'image/png': ['.png']
     },
     multiple: false,
     maxFiles: 1
@@ -160,13 +167,13 @@ export function UploadStep() {
               manuscriptError ? 'text-red-400' : bookCreation.manuscriptFile ? 'text-green-500' : 'text-gray-400'
             }`} />
             <p className="text-sm text-gray-600 mb-2">
-              Upload your book file (ePub, Word doc, or PDF)
+              Upload your manuscript. Wolly typesets the EPUB and PDF.
             </p>
             <p className="text-xs text-gray-500 mb-2">
               Drag and drop or click to select
             </p>
             <p className="text-xs text-gray-400">
-              Allowed formats: PDF, EPUB, DOC, DOCX
+              Word (.docx), Markdown (.md) or plain text (.txt), up to 50MB
             </p>
             {bookCreation.manuscriptFile && !manuscriptError && (
               <div className="mt-4 p-4 bg-white rounded-lg border border-green-200">
@@ -264,7 +271,7 @@ export function UploadStep() {
                 Drag and drop or click to select
               </p>
               <p className="text-xs text-gray-400">
-                JPG, JPEG, PNG, PDF
+                JPG, JPEG or PNG
               </p>
               {coverError && (
                 <div className="mt-4 flex items-center justify-center gap-2 text-sm text-red-600">
