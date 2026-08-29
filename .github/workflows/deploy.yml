@@ -84,6 +84,44 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
 
+      # Security rules and indexes.
+      #
+      # These were NOT deployed by this workflow until the press shipped, which
+      # meant packages/firebase-config was documentation rather than
+      # configuration: a rules change only reached production if someone
+      # remembered to run firebase deploy by hand. The press made that concrete
+      # (its storage rule is what permits .md and .txt manuscripts, and its
+      # Firestore rule is what stops an author clearing their own takedown), but
+      # the gap applied to every rule in the file.
+      #
+      # Deployed BEFORE the surfaces that depend on them, so a rule a new client
+      # needs is never the last thing to arrive.
+      #
+      # continue-on-error is PROVISIONAL and must be removed. The deploy service
+      # account (firebase-adminsdk-yc0s9) currently lacks
+      # `firebasestorage.defaultBucket.get`, so the storage half fails with a
+      # 403 before firebase-tools reaches the Firestore half. Without this flag
+      # that 403 blocks hosting, the blog and every function behind it, which is
+      # a worse failure than the one it reports.
+      #
+      # Grant the role, then DELETE this flag so a failed rules deploy is loud
+      # again:
+      #
+      #   gcloud projects add-iam-policy-binding wolly-1133d \
+      #     --member="serviceAccount:firebase-adminsdk-yc0s9@wolly-1133d.iam.gserviceaccount.com" \
+      #     --role="roles/firebasestorage.admin" --condition=None
+      #
+      # Until then, rules are deployed by hand and their live state is checked
+      # with `npm --workspace @wolly/firebase-config run test:rules`.
+      - name: Deploy security rules and indexes
+        continue-on-error: true
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          npx firebase-tools deploy \
+            --only firestore:rules,firestore:indexes,storage \
+            --project "$FIREBASE_PROJECT" --non-interactive
+
       - name: Deploy creator-hub + backoffice
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
