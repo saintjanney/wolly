@@ -97,20 +97,25 @@ jobs:
       # Deployed BEFORE the surfaces that depend on them, so a rule a new client
       # needs is never the last thing to arrive.
       #
-      # continue-on-error is PROVISIONAL and must be removed. The deploy service
-      # account (firebase-adminsdk-yc0s9) currently lacks
-      # `firebasestorage.defaultBucket.get`, so the storage half fails with a
-      # 403 before firebase-tools reaches the Firestore half. Without this flag
-      # that 403 blocks hosting, the blog and every function behind it, which is
-      # a worse failure than the one it reports.
+      # continue-on-error is PROVISIONAL and must be removed once the deploy
+      # service account can publish rules. Without it, a 403 here blocks
+      # hosting, the blog and every function behind it, which is a worse
+      # failure than the one it reports.
       #
-      # Grant the role, then DELETE this flag so a failed rules deploy is loud
-      # again:
+      # firebase-tools needs TWO grants for this step, and fails on them in
+      # sequence, so getting the first does not make the step pass:
+      #
+      #   1. roles/firebasestorage.admin   resolves the default bucket
+      #                                    (firebasestorage.defaultBucket.get)
+      #   2. roles/firebaserules.admin     compiles and publishes the rules
+      #                                    (firebaserules.rulesets.test/create,
+      #                                     firebaserules.releases.create)
       #
       #   gcloud projects add-iam-policy-binding wolly-1133d \
       #     --member="serviceAccount:firebase-adminsdk-yc0s9@wolly-1133d.iam.gserviceaccount.com" \
-      #     --role="roles/firebasestorage.admin" --condition=None
+      #     --role="roles/firebaserules.admin" --condition=None
       #
+      # Then DELETE continue-on-error, so a failed rules deploy is loud again.
       # Until then, rules are deployed by hand and their live state is checked
       # with `npm --workspace @wolly/firebase-config run test:rules`.
       - name: Deploy security rules and indexes
