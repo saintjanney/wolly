@@ -97,29 +97,20 @@ jobs:
       # Deployed BEFORE the surfaces that depend on them, so a rule a new client
       # needs is never the last thing to arrive.
       #
-      # continue-on-error is PROVISIONAL and must be removed once the deploy
-      # service account can publish rules. Without it, a 403 here blocks
-      # hosting, the blog and every function behind it, which is a worse
-      # failure than the one it reports.
+      # A failure here is FATAL on purpose. Rules are the only thing standing
+      # between a client and the database, so shipping a surface whose rules did
+      # not deploy is worse than not shipping at all.
       #
-      # firebase-tools needs TWO grants for this step, and fails on them in
-      # sequence, so getting the first does not make the step pass:
+      # The deploy service account needs both of these; firebase-tools hits them
+      # in sequence, so granting only the first moves the error rather than
+      # fixing it:
       #
-      #   1. roles/firebasestorage.admin   resolves the default bucket
-      #                                    (firebasestorage.defaultBucket.get)
-      #   2. roles/firebaserules.admin     compiles and publishes the rules
-      #                                    (firebaserules.rulesets.test/create,
-      #                                     firebaserules.releases.create)
+      #   roles/firebasestorage.admin   resolve the default bucket
+      #   roles/firebaserules.admin     compile and publish the rules
       #
-      #   gcloud projects add-iam-policy-binding wolly-1133d \
-      #     --member="serviceAccount:firebase-adminsdk-yc0s9@wolly-1133d.iam.gserviceaccount.com" \
-      #     --role="roles/firebaserules.admin" --condition=None
-      #
-      # Then DELETE continue-on-error, so a failed rules deploy is loud again.
-      # Until then, rules are deployed by hand and their live state is checked
-      # with `npm --workspace @wolly/firebase-config run test:rules`.
+      # Verify the live ruleset independently with
+      # `npm --workspace @wolly/firebase-config run test:rules`.
       - name: Deploy security rules and indexes
-        continue-on-error: true
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
         run: |
@@ -196,13 +187,40 @@ jobs:
       # @sparticuz/chromium (a serverless Chromium) and so is a large, slow
       # deploy; it is scoped alongside `api` for the same reason `api` is
       # scoped, not because they are related.
+      #
+      # Retried, because this project sits close to the Cloud Run CPU quota for
+      # europe-west2. Every 2nd-gen function is a Cloud Run service (11 of them
+      # now that the press is one), and a deploy briefly runs each new revision
+      # alongside the old one it replaces, so peak demand is roughly double the
+      # steady state. When it tips over, a healthy function fails to come up with
+      # "Quota exceeded for total allowable CPU per project per region" and the
+      # deploy reports an error for a function whose code is fine.
+      #
+      # This is a race, not a wall: retiring revisions release CPU within a
+      # minute, and a second attempt has succeeded every time. Cloud Run keeps
+      # serving the last good revision throughout, so a failure here degrades to
+      # "not updated", never to an outage.
+      #
+      # The real fix is a quota increase for Cloud Run CPU in europe-west2. Ask
+      # for one and drop the retry to a single attempt.
       - name: Deploy server functions
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
         run: |
-          npx firebase-tools deploy \
-            --only functions:api,functions:converter \
-            --project "$FIREBASE_PROJECT" --non-interactive
+          for attempt in 1 2 3; do
+            if npx firebase-tools deploy \
+                 --only functions:api,functions:converter \
+                 --project "$FIREBASE_PROJECT" --non-interactive; then
+              echo "functions deployed on attempt $attempt"
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::functions deploy attempt $attempt failed; retrying in 90s"
+              sleep 90
+            fi
+          done
+          echo "::error::functions deploy failed after 3 attempts"
+          exit 1
 
   # ── Mobile + reader web: Flutter ────────────────────────────────────────────
   reader:
