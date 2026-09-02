@@ -174,19 +174,21 @@ jobs:
             --only hosting:blog \
             --project "$FIREBASE_PROJECT" --non-interactive
 
-      # ALWAYS scope this to the `api` codebase.
+      # Scoped to the three codebases this repo owns.
       #
-      # The project also contains initializePaystackCheckout and
-      # verifyPaystackPayment, which were deployed from outside this repo and
-      # whose source is not in it or on any branch. They carry no codebase
-      # label, so an unscoped `firebase deploy --only functions` would treat
-      # them as removed and offer to delete live payment functions. Omitting
-      # --force means such a deploy fails rather than deletes, but do not rely
-      # on that: keep the scope.
-      # The `converter` codebase is the manuscript press. It bundles
-      # @sparticuz/chromium (a serverless Chromium) and so is a large, slow
-      # deploy; it is scoped alongside `api` for the same reason `api` is
-      # scoped, not because they are related.
+      # `converter` is the manuscript press; it bundles @sparticuz/chromium and
+      # so is a large, slow deploy. `payments` holds Paystack checkout and was
+      # previously excluded because its secret lived only in a deploy-time .env,
+      # which meant CI could not deploy it without breaking live checkout. The
+      # secret is now in Secret Manager and bound with runWith({ secrets }), and
+      # services/payments/predeploy-guard.sh refuses the deploy if it is not
+      # resolvable, so the failure is loud and happens here rather than at a
+      # reader's checkout.
+      #
+      # Keep the scope anyway. An unscoped `firebase deploy --only functions`
+      # treats anything it does not find locally as removed, and this project has
+      # carried unlabelled functions before. Omitting --force means such a deploy
+      # fails rather than deletes, but that is a backstop, not a plan.
       #
       # Retried, because this project sits close to the Cloud Run CPU quota for
       # europe-west2. Every 2nd-gen function is a Cloud Run service (11 of them
@@ -209,7 +211,7 @@ jobs:
         run: |
           for attempt in 1 2 3; do
             if npx firebase-tools deploy \
-                 --only functions:api,functions:converter \
+                 --only functions:api,functions:converter,functions:payments \
                  --project "$FIREBASE_PROJECT" --non-interactive; then
               echo "functions deployed on attempt $attempt"
               exit 0

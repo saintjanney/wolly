@@ -18,6 +18,16 @@ function setCors(res) {
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
 }
 
+/**
+ * The Paystack secret, from Secret Manager.
+ *
+ * Bound via `runWith({ secrets: [...] })` on each function, which Firebase
+ * surfaces as an ordinary environment variable at runtime. It used to come from
+ * a deploy-time `.env` that existed on one machine and in the deployed function
+ * environment and nowhere else, which is why this codebase was excluded from CI:
+ * any deploy without that file would have replaced working functions with ones
+ * that could not reach Paystack.
+ */
 function getPaystackSecret() {
   return process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET || '';
 }
@@ -59,6 +69,39 @@ async function callPaystack(path, options = {}) {
   return payload.data;
 }
 
+/**
+ * The money split. DUPLICATED FROM `@wolly/schema` (`splitSale`, `royaltyRateFor`).
+ *
+ * Not imported, deliberately. This codebase is deployed by Firebase, which runs
+ * `npm install` inside services/payments at deploy time; an unpublished
+ * workspace dependency cannot resolve there. That is the same failure mode that
+ * broke the blog's webframeworks deploy. `services/api/test/contract.test.js`
+ * asserts this stays identical to the canonical version.
+ *
+ * All amounts are pesewas. The author's share is of GROSS, because that is the
+ * number the pricing screen showed them; Wolly absorbs the processor's fee out
+ * of its own share. Rounding is applied once, to the author, and the platform
+ * takes the remainder, so the parts always sum back to gross exactly.
+ */
+function royaltyRateFor(royaltyOption) {
+  return royaltyOption === '35%' ? 0.35 : 0.7;
+}
+
+function splitSale({ grossMinor, providerFeeMinor, royaltyRate }) {
+  const gross = Math.round(grossMinor);
+  const providerFee = Math.max(0, Math.round(providerFeeMinor));
+  const net = gross - providerFee;
+  const authorEarnings = Math.round(gross * royaltyRate);
+  return {
+    grossMinor: gross,
+    providerFeeMinor: providerFee,
+    netMinor: net,
+    royaltyRate,
+    authorEarningsMinor: authorEarnings,
+    platformNetMinor: net - authorEarnings,
+  };
+}
+
 async function getPurchaseDoc(uid, bookId) {
   const ref = db.collection('purchases').doc(`${uid}_${bookId}`);
   const snap = await ref.get();
@@ -67,7 +110,7 @@ async function getPurchaseDoc(uid, bookId) {
 
 exports.initializePaystackCheckout = functions
   .region('us-central1')
-  .runWith({ serviceAccount: FUNCTIONS_SERVICE_ACCOUNT })
+  .runWith({ serviceAccount: FUNCTIONS_SERVICE_ACCOUNT, secrets: ['PAYSTACK_SECRET_KEY'] })
   .https.onRequest(async (req, res) => {
     setCors(res);
     if (req.method === 'OPTIONS') {
@@ -148,6 +191,10 @@ exports.initializePaystackCheckout = functions
           amountInPesewas,
           currency: 'GHS',
           status: 'pending',
+          // Frozen here, not read at report time. The reader is committing to a
+          // price now, so the terms in force now are the ones that apply. An
+          // author changing royaltyOption later must not rewrite this sale.
+          royaltyRate: royaltyRateFor(book.royaltyOption),
           launchedAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
@@ -169,7 +216,7 @@ exports.initializePaystackCheckout = functions
 
 exports.verifyPaystackPayment = functions
   .region('us-central1')
-  .runWith({ serviceAccount: FUNCTIONS_SERVICE_ACCOUNT })
+  .runWith({ serviceAccount: FUNCTIONS_SERVICE_ACCOUNT, secrets: ['PAYSTACK_SECRET_KEY'] })
   .https.onRequest(async (req, res) => {
     setCors(res);
     if (req.method === 'OPTIONS') {
@@ -228,15 +275,42 @@ exports.verifyPaystackPayment = functions
         return res.status(400).json({ error: 'Verified amount does not match expected amount' });
       }
 
-      await purchaseRef.set(
+      const paidAtDate =
+        verification.paid_at || verification.paidAt
+          ? admin.firestore.Timestamp.fromDate(
+              new Date(verification.paid_at || verification.paidAt)
+            )
+          : admin.firestore.FieldValue.serverTimestamp();
+
+      // The ledger row and the entitlement are written together.
+      //
+      // `purchases/{uid}_{bookId}` stays exactly as it was: it is what
+      // getBookDownloadUrl and the Flutter reader check, and changing its shape
+      // would need an app release. `transactions/{reference}` is the new
+      // immutable money record, one row per completed sale, carrying the split
+      // as it stood at this moment. Only completed sales are ever written to it,
+      // so the "pending counted as revenue" defect cannot recur there.
+      //
+      // Keyed by the provider reference, which makes a repeated verification
+      // idempotent: the same sale overwrites itself rather than double-counting.
+      const split = splitSale({
+        grossMinor: Number(verification.amount || purchase.amountInPesewas || 0),
+        // Paystack reports its own cut in minor units. Previously discarded,
+        // which made Wolly's true margin unknowable.
+        providerFeeMinor: Number(verification.fees || 0),
+        royaltyRate:
+          typeof purchase.royaltyRate === 'number'
+            ? purchase.royaltyRate
+            : royaltyRateFor(undefined),
+      });
+
+      const batch = db.batch();
+
+      batch.set(
+        purchaseRef,
         {
           status: 'completed',
-          purchasedAt:
-            verification.paid_at || verification.paidAt
-              ? admin.firestore.Timestamp.fromDate(
-                  new Date(verification.paid_at || verification.paidAt)
-                )
-              : admin.firestore.FieldValue.serverTimestamp(),
+          purchasedAt: paidAtDate,
           gatewayResponse: verification.gateway_response || '',
           channel: verification.channel || '',
           paidAt: verification.paid_at || verification.paidAt || null,
@@ -244,6 +318,29 @@ exports.verifyPaystackPayment = functions
         },
         { merge: true }
       );
+
+      batch.set(
+        db.collection('transactions').doc(reference),
+        {
+          id: reference,
+          bookId,
+          bookTitle: purchase.bookTitle || '',
+          buyerUserId: uid,
+          authorUserId: purchase.ownerUserId || '',
+          currency: purchase.currency || 'GHS',
+          ...split,
+          provider: 'paystack',
+          providerReference: reference,
+          channel: verification.channel || '',
+          countryCode:
+            (verification.authorization && verification.authorization.country_code) || '',
+          occurredAt: paidAtDate,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      await batch.commit();
 
       return res.json({ success: true, status: 'completed' });
     } catch (error) {

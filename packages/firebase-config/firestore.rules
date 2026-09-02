@@ -13,7 +13,7 @@ rules_version = '2';
 //                           payment_methods, payment_schedules
 //   profiles:               users
 //   books:                  epubs
-//   commerce:               purchases, payouts
+//   commerce:               purchases, transactions, payouts
 //   reader state:           reading_progress, bookmarks, follows
 //   moderation:             reviews
 //   blog:                   publications (+tiers, email_sends),
@@ -164,6 +164,23 @@ service cloud.firestore {
         isOwner(resource.data.userId) ||
         (exists(/databases/$(database)/documents/epubs/$(resource.data.bookId)) &&
          get(/databases/$(database)/documents/epubs/$(resource.data.bookId)).data.ownerUserId == request.auth.uid)
+      );
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // The money ledger. SERVER-WRITTEN ONLY, and never mutated.
+    //
+    // One immutable row per completed sale, written by services/payments with
+    // the split frozen onto it. Readable by the buyer and by the author who
+    // earned from it, because both have a legitimate need to see their own
+    // money; by nobody else, because a row names both parties.
+    //
+    // No client write of any kind. Earnings that a client could author are not
+    // earnings.
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.buyerUserId) || isOwner(resource.data.authorUserId)
       );
       allow read: if isAdmin();
       allow create, update, delete: if false;

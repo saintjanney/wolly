@@ -104,3 +104,74 @@ test('derivePubliclyReadable is identical in the schema and the publish callable
     'derivePubliclyReadable has drifted between @wolly/schema and services/api',
   );
 });
+
+/**
+ * The money split is implemented twice, and the two must agree exactly.
+ *
+ * `packages/schema/src/transaction.ts` is canonical. `services/payments`
+ * carries a copy because Firebase runs `npm install` inside that directory at
+ * deploy time and cannot resolve an unpublished workspace package.
+ *
+ * This compares them by BEHAVIOUR rather than by text: both are executed over a
+ * grid of real sale shapes and every field of the result must match. A comment
+ * saying "keep these in sync" is not a mechanism.
+ */
+test('the money split in services/payments matches @wolly/schema exactly', () => {
+  const ts = require('typescript');
+
+  // Canonical: transpile the TypeScript and pull splitSale out of it.
+  const canonicalSource = readSource('packages/schema/src/transaction.ts');
+  const compiled = ts.transpileModule(canonicalSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const canonicalModule = { exports: {} };
+  new Function('exports', 'module', 'require', compiled)(
+    canonicalModule.exports,
+    canonicalModule,
+    require,
+  );
+  const canonical = canonicalModule.exports;
+
+  // The deployed copy: evaluate the two functions out of the payments source.
+  const paymentsSource = readSource('services/payments/src/index.js');
+  const start = paymentsSource.indexOf('function royaltyRateFor');
+  const end = paymentsSource.indexOf('async function getPurchaseDoc');
+  assert.ok(start > 0 && end > start, 'could not locate the split helpers in services/payments');
+  const copySource = paymentsSource.slice(start, end);
+  const copy = new Function(
+    `${copySource}; return { splitSale, royaltyRateFor };`,
+  )();
+
+  // Royalty options, including the unset case.
+  for (const option of ['35%', '70%', undefined, 'nonsense']) {
+    assert.equal(
+      copy.royaltyRateFor(option),
+      canonical.royaltyRateFor(option),
+      `royaltyRateFor disagrees for ${String(option)}`,
+    );
+  }
+
+  // A grid of real sale shapes: typical, cheap, expensive, free-ish, and the
+  // rounding-sensitive odd amounts.
+  const grosses = [200, 999, 1500, 3000, 12345, 1];
+  const fees = [0, 34, 49, 59, 200];
+  const rates = [0.35, 0.7];
+  for (const grossMinor of grosses) {
+    for (const providerFeeMinor of fees) {
+      for (const royaltyRate of rates) {
+        const input = { grossMinor, providerFeeMinor, royaltyRate };
+        const a = canonical.splitSale(input);
+        const b = copy.splitSale(input);
+        assert.deepEqual(b, a, `split disagrees for ${JSON.stringify(input)}`);
+
+        // And the invariant that matters regardless of which is right:
+        // the parts must reconstruct the gross exactly, with no lost pesewa.
+        assert.equal(
+          a.authorEarningsMinor + a.platformNetMinor + a.providerFeeMinor,
+          a.grossMinor,
+          `parts do not sum back to gross for ${JSON.stringify(input)}`,
+        );
+      }
+    }
+  }
+});
