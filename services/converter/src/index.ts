@@ -9,6 +9,7 @@ import {
   ManuscriptTooLargeError,
 } from './convert';
 import { UnsupportedManuscriptError } from './ingest';
+import { imageSize } from './image-size';
 
 initializeApp({ storageBucket: 'wolly-1133d.appspot.com' });
 
@@ -77,7 +78,13 @@ export const onConversionRequested = onDocumentWritten(
       const fileName = objectPath.split('/').pop() ?? 'manuscript';
 
       // The cover is nice-to-have: a failed cover fetch must not fail the book.
+      //
+      // But it must not be SILENT either. This used to be a console.warn and
+      // nothing else, so an author could end up with a finished edition, no
+      // cover, and no indication that anything had gone wrong. The outcome is
+      // now recorded on the book, which is what the report reads.
       let cover: { data: Buffer; contentType: string } | null = null;
+      let coverMetrics: Record<string, unknown> | null = null;
       const coverPath = storageObjectPath((book.coverUrl as string) ?? '');
       if (coverPath) {
         try {
@@ -87,9 +94,19 @@ export const onConversionRequested = onDocumentWritten(
           if (contentType.startsWith('image/')) {
             const [data] = await file.download();
             cover = { data, contentType };
+            const size = imageSize(data);
+            coverMetrics = {
+              fetchedOk: true,
+              contentType,
+              bytes: data.length,
+              ...(size ? { width: size.width, height: size.height } : {}),
+            };
+          } else {
+            coverMetrics = { fetchedOk: false, contentType, bytes: 0 };
           }
         } catch (error) {
           console.warn(`cover fetch failed for ${bookId}:`, (error as Error).message);
+          coverMetrics = { fetchedOk: false };
         }
       }
 
@@ -136,7 +153,24 @@ export const onConversionRequested = onDocumentWritten(
           chapterCount: result.chapterCount,
           warnings: result.warnings.slice(0, 20),
           pressedAt: result.provenance.pressedAt,
+
+          // Signals the Publishing Journey Report scores against.
+          headingLevel: result.headingLevel,
+          frontMatterChapter: result.frontMatterChapter,
+          emptyChapters: result.emptyChapters,
+          shortestChapterWords: result.shortestChapterWords,
+          longestChapterWords: result.longestChapterWords,
+          imageCount: result.imageCount,
+          droppedImageCount: result.droppedImageCount,
+          unsupportedGlyphs: result.unsupportedGlyphs.slice(0, 20),
+          warningCodes: [
+            ...result.warningCodes,
+            ...(coverMetrics && coverMetrics.fetchedOk === false
+              ? [{ code: 'cover_fetch_failed', count: 1 }]
+              : []),
+          ],
         },
+        ...(coverMetrics ? { coverMetrics } : {}),
         updatedAt: FieldValue.serverTimestamp(),
       });
       console.log(

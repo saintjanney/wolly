@@ -72,6 +72,53 @@ On success the press also overwrites `url` and `fileType` so the reader needs no
 change. Pressed files are **not** publicly readable: `storage.rules` denies
 `converted/**` outright and the bucket has no public IAM binding.
 
+### Publishing Journey Report
+
+The hero screen's number. Computed by `computeReport()` in
+`packages/schema/src/publishing-report.ts`: a deterministic weighted function
+over 18 named checks summing to 100. Pure, so it runs in the browser, in a
+function and in a test with no emulator.
+
+The percentage means "how much of the work of turning this manuscript into a
+sellable book is finished", **not** "how good is this book". Four invariants are
+enforced by test:
+
+| Invariant | What it prevents |
+|---|---|
+| Determinism | the same book scoring differently on two loads |
+| Monotonicity | completing work lowering the number |
+| Single cause, single cost | one missing cover costing 10 points and then 6 more |
+| No free points | credit for a check that could not fail |
+
+Two structural rules fall out of those, and both are asserted:
+
+- **Weights are constants.** A weight that varies with progress is how a score
+  stops being reproducible.
+- **A prerequisite must weigh at least as much as everything it gates.**
+  Excluding a dependent inflates the percentage, so completing the prerequisite
+  puts that weight back at zero credit and the number falls. `unsafeGates()`
+  reports violations; `manuscript_pressed` is the single documented exemption,
+  safe only because the score is `null` until the first successful press.
+
+The publish pre-flight is the **blocking subset of the same checks**
+(`blockingFailures()`), never separate logic. Two checklists is two truths.
+
+### Conversion signals
+
+The press records these while it presses, from data it already holds. None
+costs a second read of the manuscript, and the report scores against them.
+
+| Field | Notes |
+|---|---|
+| `conversion.headingLevel` | `'h1' \| 'h2' \| null`. Was computed and discarded; without it the report sees every book as one unmarked block |
+| `conversion.frontMatterChapter` | Content appeared before the first heading |
+| `conversion.emptyChapters`, `shortestChapterWords`, `longestChapterWords` | Usually a stray page break |
+| `conversion.imageCount`, `droppedImageCount` | |
+| `conversion.unsupportedGlyphs` | Characters the embedded fonts cannot draw. Non-empty means empty boxes in the author's own PDF, which is a **blocker** for a Ghanaian-language book |
+| `conversion.warningCodes` | Classified, so author-actionable notes can be shown and engine noise stays hidden |
+| `coverMetrics` | `{ width, height, bytes, contentType, fetchedOk }`. `fetchedOk: false` used to be a silent `console.warn` |
+| `previewChapters` | Chapters offered as a free sample |
+
 ### Rights
 
 | Field | Type | Written by | Notes |

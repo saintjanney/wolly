@@ -69,6 +69,7 @@ service cloud.firestore {
         'conversionError',
         'epubUrl',
         'pdfUrl',
+        'coverMetrics',
         'rightsStatus',
         'rightsNote',
         'rightsUpdatedAt'

@@ -16,6 +16,48 @@ export interface Chapter {
  * text is one chapter. Content before the first heading becomes a front-matter
  * chapter so nothing is ever silently dropped.
  */
+/**
+ * What the split already knew and used to discard.
+ *
+ * `splitTag` was computed and thrown away on the next line. It is the single
+ * most useful signal the report has about structure: without it every book
+ * looks like one unmarked block, and a properly chaptered novel would be told
+ * to go and mark its chapter titles.
+ */
+export interface ChapterStats {
+  headingLevel: 'h1' | 'h2' | null;
+  frontMatterChapter: boolean;
+  emptyChapters: number;
+  shortestChapterWords: number;
+  longestChapterWords: number;
+}
+
+export function splitChaptersWithStats(
+  nodes: BookNode[],
+  fallbackTitle: string,
+): { chapters: Chapter[]; stats: ChapterStats } {
+  const headingLevel = nodes.some((n) => n.tag === 'h1')
+    ? 'h1'
+    : nodes.some((n) => n.tag === 'h2')
+      ? 'h2'
+      : null;
+  const chapters = splitChapters(nodes, fallbackTitle);
+  const counts = chapters.map((c) => {
+    const text = plain(c.nodes as Array<BookNode | string>).trim();
+    return text ? text.split(/\s+/).filter(Boolean).length : 0;
+  });
+  return {
+    chapters,
+    stats: {
+      headingLevel,
+      frontMatterChapter: headingLevel !== null && chapters.length > 0 && chapters[0].title === fallbackTitle,
+      emptyChapters: counts.filter((n) => n === 0).length,
+      shortestChapterWords: counts.length ? Math.min(...counts) : 0,
+      longestChapterWords: counts.length ? Math.max(...counts) : 0,
+    },
+  };
+}
+
 export function splitChapters(nodes: BookNode[], fallbackTitle: string): Chapter[] {
   const splitTag = nodes.some((n) => n.tag === 'h1')
     ? 'h1'

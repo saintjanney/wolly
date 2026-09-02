@@ -91,3 +91,43 @@ export function fontFaceCss(): string {
  */
 export const SERIF_STACK = `'Wolly Serif', Georgia, 'Times New Roman', serif`;
 export const SANS_STACK = `'Wolly Sans', Helvetica, Arial, sans-serif`;
+
+/**
+ * The codepoint ranges the bundled fonts actually contain.
+ *
+ * This MUST match the subset range in fonts/NOTICE.md, which is the command
+ * that produced the files. It is duplicated here rather than parsed out of the
+ * woff2 at runtime because decoding a font to answer "can we print this?" on
+ * every pressing is a lot of work to learn something that only changes when
+ * somebody re-subsets deliberately.
+ *
+ * Getting this wrong is not cosmetic in Ghana: a character outside these ranges
+ * is drawn as an empty box in the author's own book, silently.
+ */
+const SUPPORTED_RANGES: Array<[number, number]> = [
+  [0x0000, 0x00ff], // Basic Latin + Latin-1 Supplement
+  [0x0100, 0x017f], // Latin Extended-A      (ŋ Ŋ)
+  [0x0180, 0x024f], // Latin Extended-B      (ƒ, Ɛ Ɔ)
+  [0x0250, 0x02af], // IPA Extensions        (ɛ ɔ ɖ ʋ ɣ)
+  [0x0300, 0x036f], // Combining diacritics, for tone marks
+  [0x2000, 0x206f], // General punctuation
+  [0x20a0, 0x20bf], // Currency symbols      (₵)
+];
+
+/**
+ * Characters in this manuscript that the embedded fonts cannot draw.
+ *
+ * Returns the distinct offenders, not every occurrence, because the author
+ * needs to know which characters to ask about, not how many times they wrote
+ * them. Whitespace and control characters are ignored: they are not glyphs.
+ */
+export function unsupportedGlyphsIn(text: string): string[] {
+  const missing = new Set<string>();
+  for (const character of text) {
+    const code = character.codePointAt(0);
+    if (code === undefined || code < 0x20) continue;
+    if (SUPPORTED_RANGES.some(([low, high]) => code >= low && code <= high)) continue;
+    missing.add(character);
+  }
+  return [...missing];
+}
