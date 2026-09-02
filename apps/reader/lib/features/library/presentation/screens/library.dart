@@ -36,29 +36,39 @@ class _LibraryState extends State<Library> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
+  /// Loads the catalogue ONCE, then derives the other tabs from it.
+  ///
+  /// These used to run concurrently in a `Future.wait`, and `_loadPurchased()`
+  /// called `fetchAllBooks()` a second time because it could not rely on
+  /// `_allBooks` being populated yet. Every visit to the library fetched the
+  /// whole catalogue twice.
   Future<void> _loadAll() async {
     setState(() => _loading = true);
-    await Future.wait([_loadAllBooks(), _loadPurchased(), _loadInProgress()]);
-    if (mounted) setState(() => _loading = false);
-  }
-
-  Future<void> _loadAllBooks() async {
     _allBooks = await _libraryProvider.fetchAllBooks();
+    await Future.wait([_loadPurchased(), _loadInProgress()]);
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _loadPurchased() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) { _purchasedBooks = []; return; }
 
+    // No early return on an empty purchase list. There used to be one, which
+    // made the free-book branch below unreachable for anyone who had not bought
+    // something: a reader with no purchases saw an empty library even though the
+    // catalogue is mostly free books.
     final purchasedIds = await _purchaseRepo.getUserPurchasedBookIds();
-    if (purchasedIds.isEmpty) { _purchasedBooks = []; return; }
 
-    final allBooks = await _libraryProvider.fetchAllBooks();
-    _purchasedBooks = allBooks.where((b) => purchasedIds.contains(b.id)).toList();
+    final purchased = _allBooks.where((b) => purchasedIds.contains(b.id)).toList();
+    final free = _allBooks
+        .where((b) => b.isFree && !purchased.any((p) => p.id == b.id))
+        .toList();
 
-    // Also include free books
-    final freeBooks = allBooks.where((b) => b.isFree && !_purchasedBooks.any((p) => p.id == b.id)).toList();
-    _purchasedBooks = [..._purchasedBooks, ...freeBooks];
+    // NOTE: this shelf is "everything you can read", not "everything you bought".
+    // Whether free titles belong in My Library is a product question for the
+    // reader rebuild; it is left as-is here so the behaviour does not change
+    // under a Phase 0 fix.
+    _purchasedBooks = [...purchased, ...free];
   }
 
   Future<void> _loadInProgress() async {
