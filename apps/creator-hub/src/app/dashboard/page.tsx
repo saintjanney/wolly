@@ -163,7 +163,7 @@ export default function Dashboard() {
     return null;
   }
 
-  const userCurrency = user.currency || 'USD';
+  const userCurrency = user.currency || 'GHS';
 
   return (
     <div className="h-full bg-gradient-to-br from-gray-50 via-white to-gray-50 overflow-x-hidden">

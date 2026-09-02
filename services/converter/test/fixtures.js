@@ -348,6 +348,32 @@ const HOSTILE_MARKDOWN = `# Hostile
 Legitimate closing paragraph.
 `;
 
+/**
+ * A manuscript in the languages Wolly's first market actually writes in.
+ *
+ * Twi, Ewe, Ga and Dagbani need characters outside the Latin-1 range, and
+ * prices need the cedi sign. The bundled fonts originally carried Google's
+ * `latin` subset only, so every one of these rendered as a .notdef box in the
+ * PDF Wolly typeset for the author. Nothing failed; the book was just wrong.
+ * See fonts/NOTICE.md.
+ */
+const GHANAIAN_MARKDOWN = `# Akwaaba
+
+Wo ho te sɛn? Me din de Ama. Mepɛ sɛ mekyerɛw nwoma.
+
+## Eʋegbe
+
+Ŋdi na mi. Ɖe wò ŋkɔ nye Kofi? Ɣeyiɣi aɖe va yi.
+
+## Ga kɛ Dagbani
+
+Ŋoo, ŋmɛnɛ. Bɔ ni ŋɔɔ. Ƒe ɖeka.
+
+## Bo a tɔn
+
+Nwoma yi bo yɛ ₵30. Ɛyɛ ɔdɔ adwuma.
+`;
+
 module.exports = {
   PNG_1PX,
   buildDocx,
@@ -359,6 +385,7 @@ module.exports = {
   MARKDOWN,
   PLAIN_TEXT,
   HOSTILE_MARKDOWN,
+  GHANAIAN_MARKDOWN,
   // An OLE compound file header: what a real legacy .doc starts with.
   LEGACY_DOC: Buffer.concat([
     Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),

@@ -7,11 +7,15 @@ produces a wrong book rather than a failed one. See `../src/fonts.ts`.
 
 | File | Family | Source | Licence |
 | --- | --- | --- | --- |
-| `EBGaramond-Regular.woff2` | EB Garamond 400 | Google Fonts v33, Latin subset, instanced | SIL Open Font License 1.1 |
-| `EBGaramond-Bold.woff2` | EB Garamond 700 | Google Fonts v33, Latin subset, instanced | SIL Open Font License 1.1 |
-| `EBGaramond-Italic.woff2` | EB Garamond 400 italic | Google Fonts v33, Latin subset | SIL Open Font License 1.1 |
-| `Inter-Regular.woff2` | Inter 400 | Google Fonts v20, Latin subset, instanced | SIL Open Font License 1.1 |
-| `Inter-Bold.woff2` | Inter 700 | Google Fonts v20, Latin subset, instanced | SIL Open Font License 1.1 |
+| `EBGaramond-Regular.woff2` | EB Garamond 400 | upstream variable, instanced + subset | SIL Open Font License 1.1 |
+| `EBGaramond-Bold.woff2` | EB Garamond 700 | upstream variable, instanced + subset | SIL Open Font License 1.1 |
+| `EBGaramond-Italic.woff2` | EB Garamond 400 italic | upstream variable, instanced + subset | SIL Open Font License 1.1 |
+| `Inter-Regular.woff2` | Inter 400 | upstream variable, instanced + subset | SIL Open Font License 1.1 |
+| `Inter-Bold.woff2` | Inter 700 | upstream variable, instanced + subset | SIL Open Font License 1.1 |
+
+Sources are the full families from `github.com/google/fonts`, **not** the
+`latin` subsets `fonts.googleapis.com` serves. That distinction is the whole
+point of the section below.
 
 ## Why static instances
 
@@ -46,18 +50,72 @@ Two conditions do apply:
 
 - The fonts may not be sold on their own.
 - A **modified** font may not be distributed under a name containing a Reserved
-  Font Name. EB Garamond and Inter are the reserved names here. These files are
-  unmodified Google Fonts Latin subsets, so nothing is triggered today, but
-  re-subsetting or re-hinting them means renaming them.
+  Font Name. EB Garamond and Inter are the reserved names here.
+
+  These files **are** modified: they are weight instances of the upstream
+  variable fonts, re-subset to the range below. They still carry the upstream
+  family names internally (`EB Garamond`, `Inter`), which is what `pdffonts`
+  reports. That matches what Google's own CDN serves and is the common reading
+  of the clause for subsetting, but it is a question for counsel rather than one
+  engineering should settle: if Wolly ever needs to be conservative here, rename
+  the internal family (`instancer` takes a name override) and update
+  `test/pdf.test.js`, which currently asserts on `EBGaramond` and `Inter`.
 
 The CSS families are called `Wolly Serif` and `Wolly Sans`. That is an internal
 alias for the stylesheet, not a renamed font: the embedded font data still
 identifies itself as EB Garamond and Inter, which is what a PDF reader reports
 and what `pdffonts` shows.
 
-## Latin only
+## Coverage, and why it is wider than Latin-1
 
-These are the Latin subsets. A manuscript in Greek, Cyrillic or Vietnamese will
-fall through to a container font, and to a missing-glyph box if there is none.
-Widening the corpus means adding the corresponding subsets here and a fixture in
-that script, not changing code.
+The first version of these files carried Google's `latin` subset, about 230
+glyphs each. That silently excluded **every character Ghanaian orthographies
+need** and the currency the product prices in:
+
+    ɛ ɔ ŋ ɖ ƒ ʋ ɣ   Ɛ Ɔ Ŋ   ₵
+
+An author writing Twi, Ewe, Ga or Dagbani got a row of `.notdef` boxes in the
+book Wolly typeset for them, and a price could not render the cedi sign.
+Nothing failed and no test caught it, because the pipeline was only ever
+exercised with English fixtures.
+
+The subset range is now explicit:
+
+| Range | Why |
+| --- | --- |
+| `U+0000-00FF` | Basic Latin and Latin-1 Supplement |
+| `U+0100-017F` | Latin Extended-A (`ŋ Ŋ`) |
+| `U+0180-024F` | Latin Extended-B (`ƒ`, `Ɛ Ɔ`) |
+| `U+0250-02AF` | IPA Extensions (`ɛ ɔ ɖ ʋ ɣ`) |
+| `U+0300-036F` | Combining diacritics, for tone marks |
+| `U+2000-206F` | General punctuation |
+| `U+20A0-20BF` | Currency symbols (`₵` U+20B5) |
+
+`test/pdf.test.js` presses a Twi, Ewe, Ga and Dagbani fixture and asserts every
+one of those characters round-trips out of the finished PDF. Widening to another
+script means extending the range here **and** adding words to that fixture; a
+range without a fixture is how this broke the first time.
+
+**Known gap:** EB Garamond Italic has no `ʋ` (U+028B) upstream, so an italicised
+Ewe word containing it falls back. The roman and bold faces are complete.
+
+## Regenerating
+
+```python
+from fontTools.ttLib import TTFont
+from fontTools.varLib import instancer
+from fontTools import subset
+
+RANGES = ("U+0000-00FF,U+0100-017F,U+0180-024F,"
+          "U+0250-02AF,U+0300-036F,U+2000-206F,U+20A0-20BF")
+
+f = TTFont('EBGaramond[wght].ttf')                      # the FULL upstream file
+instancer.instantiateVariableFont(f, {'wght': 400}, inplace=True, updateFontNames=True)
+opts = subset.Options(); opts.layout_features = ['*']; opts.notdef_outline = True
+s = subset.Subsetter(options=opts)
+s.populate(unicodes=subset.parse_unicodes(RANGES)); s.subset(f)
+f.flavor = 'woff2'; f.save('EBGaramond-Regular.woff2')
+```
+
+Instancing before subsetting is deliberate: Chromium writes a *variable* face
+into a PDF as a Type 3 font, which is rejected by PDF/X preflight.

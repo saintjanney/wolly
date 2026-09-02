@@ -115,6 +115,21 @@ describe('pressed PDFs', { skip: available ? false : 'poppler is not installed' 
     );
   });
 
+  it('renders Ghanaian orthographies and the cedi sign', () => {
+    // The initial market writes in Twi, Ewe, Ga and Dagbani and prices in cedis.
+    // If a character is not in the embedded font, Chromium draws .notdef and
+    // pdftotext extracts nothing for it, so a round-trip is a real check.
+    const book = join(OUT_DIR, 'ghanaian.pdf');
+    assert.ok(existsSync(book), 'ghanaian.pdf missing - convert.test.js must run first');
+    const out = spawnSync('pdftotext', [book, '-'], { encoding: 'utf8' }).stdout ?? '';
+
+    for (const word of ['sɛn', 'mekyerɛw', 'Ŋdi', 'ŋkɔ', 'Ɣeyiɣi', 'Ƒe', 'ɖeka', 'ɔdɔ']) {
+      assert.ok(out.includes(word), `"${word}" did not survive into the PDF text`);
+    }
+    assert.ok(out.includes('₵30'), 'the cedi sign did not render');
+    assert.ok(!out.includes('\uFFFD'), 'replacement characters reached the PDF');
+  });
+
   it('puts the imprint on the title page rather than orphaning it', () => {
     // Regression: the imprint block carried a 3in top margin that overflowed
     // the page, leaving "Published by Wolly" alone on page two.
