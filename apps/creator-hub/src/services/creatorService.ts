@@ -54,7 +54,7 @@ export class CreatorService {
       
       // Get country info for default values
       const countryCode = onboardingData.countryOfResidence;
-      const defaultCurrency = 'USD';
+      const defaultCurrency = 'GHS';
       const defaultTimezone = 'America/New_York';
       const defaultLanguage = 'English';
       

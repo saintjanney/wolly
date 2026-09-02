@@ -128,7 +128,7 @@ export default function BooksPage() {
     return null;
   }
 
-  const userCurrencySymbol = getCurrencySymbol(user.currency || 'USD');
+  const userCurrencySymbol = getCurrencySymbol(user.currency || 'GHS');
 
   if (books.length === 0) {
   return (

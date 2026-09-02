@@ -1,6 +1,6 @@
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { COLLECTIONS, type EpubBook, type Purchase } from '@wolly/schema';
+import { COLLECTIONS, isPaid, type EpubBook, type Purchase } from '@wolly/schema';
 import { Payment } from '@/types/book';
 
 /**
@@ -110,6 +110,9 @@ export class PayoutService {
       );
       snap.forEach((docSnap) => {
         const p = docSnap.data() as Purchase;
+        // Royalties are owed on completed sales only. Without this an abandoned
+        // checkout raised the author's payable balance.
+        if (!isPaid(p)) return;
         out.push({
           bookId: p.bookId,
           amount: (p.amountInPesewas ?? 0) / 100,

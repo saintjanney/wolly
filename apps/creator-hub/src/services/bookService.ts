@@ -370,7 +370,10 @@ export class BookService {
         keywords: bookCreation.keywords || [],
         aiGenerated: bookCreation.isAIGenerated || false,
         isFree: bookCreation.isFree || false,
-        currency: bookCreation.currency || 'USD',
+        // GHS, not USD. The payment functions hard-code `currency: 'GHS'` and
+        // charge in pesewas, so a book defaulted to USD was labelled in dollars
+        // and charged at face value in cedis.
+        currency: bookCreation.currency || 'GHS',
         royaltyOption: bookCreation.royaltyOption || '70%',
         customerPaysProcessingFee: bookCreation.customerPaysProcessingFee !== undefined ? bookCreation.customerPaysProcessingFee : true,
         distributionChannels: {

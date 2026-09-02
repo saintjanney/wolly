@@ -53,10 +53,10 @@ export function formatDate(date: Date, format: 'short' | 'medium' | 'long' = 'me
 /**
  * Format currency with proper symbol and formatting
  * @param amount - Amount to format
- * @param currency - Currency code (default: 'USD')
+ * @param currency - Currency code (default: 'GHS')
  * @returns Formatted currency string
  */
-export function formatCurrency(amount: number, currency: string = 'USD'): string {
+export function formatCurrency(amount: number, currency: string = 'GHS'): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: currency,

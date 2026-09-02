@@ -384,6 +384,16 @@ describe('the rest of the corpus', () => {
     assert.ok(!joined.includes('example.org/remote.png'), 'remote image leaked into the book');
   });
 
+  it('presses a manuscript in Ghanaian languages', async () => {
+    // Regression: the bundled fonts carried Google's `latin` subset only, so
+    // every Twi, Ewe, Ga and Dagbani character and the cedi sign rendered as a
+    // .notdef box in the author's PDF. test/pdf.test.js asserts they come back
+    // out of the pressed file; this only has to press it.
+    const result = await press('ghanaian', 'akwaaba.md', Buffer.from(fixtures.GHANAIAN_MARKDOWN));
+    assert.equal(result.sourceFormat, 'markdown');
+    assert.ok(result.chapterCount >= 1);
+  });
+
   it('presses plain text', async () => {
     const result = await press('text', 'notes.txt', Buffer.from(fixtures.PLAIN_TEXT));
     assert.equal(result.sourceFormat, 'text');

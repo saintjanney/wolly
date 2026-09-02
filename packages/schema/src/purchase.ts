@@ -54,3 +54,22 @@ export interface Purchase {
   purchasedAt?: FirestoreTimestamp;
   updatedAt?: FirestoreTimestamp;
 }
+
+/**
+ * Whether a purchase represents money that actually arrived.
+ *
+ * The ONLY correct test for revenue, royalties, entitlement and analytics.
+ * Defined here rather than at each call site because it was previously implicit
+ * and two call sites simply omitted it: `analyticsService.getSalesForBooks()`
+ * and `payoutService.getSales()` both queried `purchases` by `bookId` with no
+ * status filter, so a reader who opened checkout and walked away permanently
+ * inflated the author's reported earnings.
+ *
+ * Absent status is NOT paid, per the field contract above. Documents written
+ * before verification existed carry no status, and there is no way to tell a
+ * genuine legacy sale from an abandoned one; counting them would be guessing
+ * with an author's money.
+ */
+export function isPaid(purchase: Pick<Purchase, 'status'>): boolean {
+  return purchase.status === 'completed';
+}

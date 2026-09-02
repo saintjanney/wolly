@@ -1,6 +1,6 @@
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { COLLECTIONS, type EpubBook, type Purchase } from '@wolly/schema';
+import { COLLECTIONS, isPaid, type EpubBook, type Purchase } from '@wolly/schema';
 
 export type TimeRange = '7d' | '30d' | '90d' | '1y' | 'custom';
 
@@ -140,6 +140,10 @@ export class AnalyticsService {
       );
       snap.forEach((doc) => {
         const p = doc.data() as Purchase;
+        // Only money that actually arrived. A `pending` document exists from the
+        // moment checkout opens, so counting it reports an abandoned checkout to
+        // the author as revenue.
+        if (!isPaid(p)) return;
         const date = toDate(p.purchasedAt);
         if (date >= startDate && date <= endDate) {
           sales.push({

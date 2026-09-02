@@ -12,8 +12,10 @@ import { CurrencyDollarIcon, InformationCircleIcon } from '@heroicons/react/24/o
 export function PricingStep() {
   const { bookCreation, setBookCreation } = useBookCreationStore();
   const { user } = useAuth();
-  const [userCurrency, setUserCurrency] = useState<string>('USD');
-  const [currencySymbol, setCurrencySymbol] = useState<string>('$');
+  // Ghana is the initial market and checkout charges GHS. Starting at USD meant
+  // the author saw a dollar sign while typing the price they would be paid in cedis.
+  const [userCurrency, setUserCurrency] = useState<string>('GHS');
+  const [currencySymbol, setCurrencySymbol] = useState<string>('\u20B5');
 
   const authCurrency = user?.currency;
 
@@ -50,10 +52,19 @@ export function PricingStep() {
 
   const getCurrencyDisplay = () => currencySymbol;
 
-  // Calculate earnings based on price and platform fee (20%)
-  const calculateEarnings = (price: number): number => {
-    return price * 0.8; // You keep 80%
-  };
+  /**
+   * The author's share of a sale.
+   *
+   * Derived from the royalty option the author actually selected below, which
+   * is what `payoutService` pays against. This used to be hard-coded to 0.8
+   * while the selector offered 35% and 70% and the payout service used 70%, so
+   * a single screen showed the author three different numbers and promised the
+   * one they were never paid.
+   */
+  const royaltyRate = bookCreation.royaltyOption === '35%' ? 0.35 : 0.7;
+  const royaltyLabel = bookCreation.royaltyOption === '35%' ? '35%' : '70%';
+
+  const calculateEarnings = (price: number): number => price * royaltyRate;
 
   const yourEarnings = !bookCreation.isFree && bookCreation.price 
     ? calculateEarnings(bookCreation.price) 
@@ -123,7 +134,7 @@ export function PricingStep() {
                     {getCurrencyDisplay()}{yourEarnings.toFixed(2)}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    (80% of {getCurrencyDisplay()}{bookCreation.price.toFixed(2)})
+                    ({royaltyLabel} of {getCurrencyDisplay()}{bookCreation.price.toFixed(2)})
                   </p>
                 </div>
                 <div className="text-right">
