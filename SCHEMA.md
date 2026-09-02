@@ -134,6 +134,51 @@ the author. It cannot delete copies already downloaded; see
 Security rules deny clients every field in this section and in `conversion`. An
 author who could write `rightsStatus` could clear their own takedown.
 
+### `epubs/{bookId}/rights/{grantId}` — the rights registry
+
+A per-book ledger of who may do what with a work. **Not the same thing as
+`epubs.rightsStatus`**, which is a takedown gate read by `getBookDownloadUrl`.
+Collapsing them would mean an author editing a licence could revoke their own
+book, so the registry **never touches the delivery gate**: a self-declared field
+cannot disable a book and cannot enable one.
+
+Private to the book's owner and to staff. Never public, never readable by other
+authenticated users, because a grant names a counterparty and can carry
+commercial terms. **No Dart mirror**: the reader does not read grants.
+
+| Field | Notes |
+|---|---|
+| `format` | `print \| ebook \| audio \| translation \| adaptation \| educational \| library \| serialization \| merchandising` |
+| `territories[]`, `languages[]` | ISO codes, with sentinels `WORLD` and `ALL` |
+| `channels[]`, `exclusivity` | `exclusivity` defaults to `unknown` rather than guessing |
+| `holderKind`, `holderName`, `holderUserId?` | `holderUserId` is stored for future linkage and grants **no permission today** |
+| `startDate`, `endDate` | `YYYY-MM-DD` calendar dates, not Timestamps: these come off a contract, and timezone drift on a licence expiry is a real bug. Null `endDate` means perpetual |
+| `terms?` | Structured fields for the minority with real deals; most authors fill only `summary` |
+| `disposition` | `available \| licensed \| restricted`. The **only** status axis the author sets |
+| `declaration` | What the author signed, stored **verbatim**, immutable after create |
+| `verificationState` + 4 fields | **Server-owned.** Flat, not nested, because `affectedKeys()` enumerates top-level keys only |
+| `archivedAt` | Grants are archived, never deleted |
+
+**Three of the six spec statuses are derived, not stored.** A stored `expired`
+goes stale the moment the clock passes midnight and nobody runs a job.
+`deriveRightsBadge()` computes expired, expiring (90 days) and
+needs-verification from the dates and the verification state, in that
+precedence: expired outranks needs-verification because an expired grant needs
+renewing rather than checking.
+
+**The declared-versus-verified boundary is the point of the registry**, and it
+is enforced in rules rather than described in UI. An author cannot mark their
+own claim verified, and cannot edit the declaration after signing it. Both are
+asserted in `packages/firebase-config/test/rules.test.js`. `verifiedScope`
+records what was actually checked ("Saw a signed 2024 agreement naming
+Sub-Saharan Africa print rights"), never "Wolly confirms this author owns this
+work".
+
+The registry deliberately does not nag: if you say you hold everything
+yourself, Wolly asks for nothing. It asks for evidence only when you name a
+third party. A registry that demands paperwork from every author is a registry
+nobody fills in.
+
 ### Creator-hub → reader field mapping
 
 When the creator-hub publishes, it maps its internal fields to the reader

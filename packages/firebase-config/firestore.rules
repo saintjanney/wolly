@@ -12,7 +12,7 @@ rules_version = '2';
 //   reference (read-only):  countries, genres, supported_currencies,
 //                           payment_methods, payment_schedules
 //   profiles:               users
-//   books:                  epubs
+//   books:                  epubs (+rights)
 //   commerce:               purchases, transactions, payouts
 //   reader state:           reading_progress, bookmarks, follows
 //   moderation:             reviews
@@ -93,6 +93,41 @@ service cloud.firestore {
         || request.resource.data.conversionStatus == 'requested';
     }
 
+    /**
+     * Rights-grant fields only the server may write.
+     *
+     * The declared-versus-verified boundary is the whole point of the registry.
+     * An author who could write `verificationState: 'verified'` could mark their
+     * own claim checked, which is exactly what RIGHTS.md says Wolly must never
+     * imply. Kept flat rather than nested because affectedKeys() enumerates
+     * top-level keys only, so a nested map cannot be protected field by field.
+     */
+    function serverOwnedRightsFields() {
+      return [
+        'verificationState',
+        'verifiedBy',
+        'verifiedAt',
+        'verificationNote',
+        'verifiedScope'
+      ];
+    }
+
+    function writesServerOwnedRightsFields() {
+      return request.resource.data.diff(resource.data)
+        .affectedKeys().hasAny(serverOwnedRightsFields());
+    }
+
+    /**
+     * The declaration is what the author signed, and it is evidence.
+     *
+     * Immutable after create: a record of "they agreed" is worth little if the
+     * wording can be edited afterwards.
+     */
+    function declarationUnchanged() {
+      return !request.resource.data.diff(resource.data)
+        .affectedKeys().hasAny(['declaration']);
+    }
+
     // ── Reference data (read-only to clients) ───────────────────────────────
     match /countries/{countryId} {
       allow read: if isAuthenticated();
@@ -148,6 +183,40 @@ service cloud.firestore {
         && conversionStatusIsRequestOnly();
       allow update: if isAdmin();
       allow delete: if isAuthenticated() && isOwner(resource.data.ownerUserId);
+    }
+
+    /**
+     * The rights registry. PRIVATE to the book's owner and to staff.
+     *
+     * Never public and never readable by other authenticated users: a grant
+     * names a counterparty and can carry commercial terms. It is also
+     * deliberately disconnected from the delivery gate, which reads
+     * `epubs.rightsStatus` and nothing here. A self-declared field must not be
+     * able to disable a book, and must not be able to enable one.
+     *
+     * Deleting is forbidden. Grants are archived with `archivedAt`, so the
+     * record of what was once claimed survives the claim being withdrawn.
+     */
+    match /epubs/{bookId}/rights/{grantId} {
+      function bookOwner() {
+        return isAuthenticated()
+          && exists(/databases/$(database)/documents/epubs/$(bookId))
+          && get(/databases/$(database)/documents/epubs/$(bookId)).data.ownerUserId == request.auth.uid;
+      }
+
+      allow read: if bookOwner() || isAdmin();
+
+      allow create: if bookOwner()
+        && request.resource.data.ownerUserId == request.auth.uid
+        && request.resource.data.bookId == bookId
+        && !request.resource.data.keys().hasAny(serverOwnedRightsFields());
+
+      allow update: if bookOwner()
+        && !writesServerOwnedRightsFields()
+        && declarationUnchanged();
+      allow update: if isAdmin();
+
+      allow delete: if false;
     }
 
     // ── Commerce ───────────────────────────────────────────────────────────
