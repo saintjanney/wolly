@@ -456,3 +456,82 @@ describe('the rest of the corpus', () => {
 after(() => {
   console.log(`\nGenerated books are in ${OUT_DIR} for epubcheck and manual inspection.`);
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+describe('signals for the publishing report', () => {
+  it('reports the heading level it split on, instead of discarding it', async () => {
+    // Without this the report sees every book as one unmarked block and tells a
+    // properly chaptered novel to go and mark its chapter titles.
+    const novel = await convertManuscript({
+      ...BASE,
+      manuscriptFileName: 'novel.docx',
+      manuscript: await fixtures.novelDocx(),
+    });
+    assert.equal(novel.headingLevel, 'h1');
+    assert.equal(novel.frontMatterChapter, true, 'the novel opens with text before its first heading');
+    assert.equal(novel.emptyChapters, 0);
+    assert.ok(novel.shortestChapterWords > 0);
+    assert.ok(novel.longestChapterWords >= novel.shortestChapterWords);
+  });
+
+  it('falls back to h2 and reports that honestly', async () => {
+    const result = await convertManuscript({
+      ...BASE,
+      manuscriptFileName: 'sections.docx',
+      manuscript: await fixtures.h2OnlyDocx(),
+    });
+    assert.equal(result.headingLevel, 'h2');
+  });
+
+  it('reports null when a manuscript carries no headings at all', async () => {
+    const result = await convertManuscript({
+      ...BASE,
+      manuscriptFileName: 'flat.docx',
+      manuscript: await fixtures.noHeadingsDocx(),
+    });
+    assert.equal(result.headingLevel, null);
+  });
+
+  it('counts images kept and dropped', async () => {
+    const result = await convertManuscript({
+      ...BASE,
+      manuscriptFileName: 'novel.docx',
+      manuscript: await fixtures.novelDocx(),
+    });
+    assert.equal(result.imageCount, 1);
+    assert.equal(result.droppedImageCount, 0);
+  });
+
+  it('finds characters the embedded fonts cannot draw', async () => {
+    // The Ghanaian fixture must come back clean, because the fonts were
+    // re-subset for exactly these characters.
+    const ghanaian = await convertManuscript({
+      ...BASE,
+      manuscriptFileName: 'akwaaba.md',
+      manuscript: Buffer.from(fixtures.GHANAIAN_MARKDOWN),
+    });
+    assert.deepEqual(ghanaian.unsupportedGlyphs, [], 'Twi, Ewe, Ga and Dagbani must render');
+
+    // Something genuinely outside the subset must be reported, not silently
+    // printed as an empty box in the author's own book.
+    const cjk = await convertManuscript({
+      ...BASE,
+      manuscriptFileName: 'mixed.md',
+      manuscript: Buffer.from('# Title\n\nA line, and then 你好 in the middle.\n'),
+    });
+    assert.deepEqual(cjk.unsupportedGlyphs.sort(), ['好', '你'].sort());
+  });
+
+  it('classifies warnings so engine noise never reaches the author', async () => {
+    const result = await convertManuscript({
+      ...BASE,
+      manuscriptFileName: 'novel.docx',
+      manuscript: await fixtures.novelDocx(),
+    });
+    assert.ok(Array.isArray(result.warningCodes));
+    for (const entry of result.warningCodes) {
+      assert.equal(typeof entry.code, 'string');
+      assert.ok(entry.count >= 1);
+    }
+  });
+});

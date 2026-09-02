@@ -123,6 +123,13 @@ const cases = [
   // Someone else's book.
   testCase('a stranger edits the book', 'DENY', { ...EXISTING, title: 'Hijacked' }, 'someone-else'),
 
+  // The press measures the cover. An author who could write coverMetrics could
+  // claim a sharp cover they have not uploaded, and the report would believe it.
+  testCase('author forges the cover measurements', 'DENY', {
+    ...EXISTING,
+    coverMetrics: { width: 4000, height: 6000, bytes: 900000, fetchedOk: true },
+  }),
+
   // The ledger. Earnings a client could author are not earnings.
   {
     __name: 'author writes themselves a sale',

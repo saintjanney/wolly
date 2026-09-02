@@ -53,6 +53,56 @@ export interface BookConversion {
   warnings: string[];
   /** ISO 8601. */
   pressedAt: string;
+
+  // ── Signals for the Publishing Journey Report ────────────────────────────
+  //
+  // All computed inside the pass the press already runs, from data it already
+  // holds. None of them costs a second read of the manuscript.
+
+  /**
+   * The heading level the book was split on, or null when it carried none.
+   *
+   * The single most useful structural signal. It was computed and discarded
+   * before this existed, which meant the report saw every book as one unmarked
+   * block and would have told a properly chaptered novel to go and mark its
+   * chapter titles.
+   */
+  headingLevel?: 'h1' | 'h2' | null;
+  /** Whether content appeared before the first heading. */
+  frontMatterChapter?: boolean;
+  emptyChapters?: number;
+  shortestChapterWords?: number;
+  longestChapterWords?: number;
+  imageCount?: number;
+  droppedImageCount?: number;
+  /**
+   * Distinct characters the embedded fonts cannot draw.
+   *
+   * Non-empty means the author's own PDF contains empty boxes. In Ghana that is
+   * a blocker rather than a nicety: Twi, Ewe, Ga and Dagbani all need
+   * characters outside Latin-1. See services/converter/src/fonts.ts.
+   */
+  unsupportedGlyphs?: string[];
+  /**
+   * Warnings with machine-readable codes, so the report can score and show the
+   * author-actionable ones and stay silent about engine noise.
+   */
+  warningCodes?: Array<{ code: string; count: number }>;
+}
+
+/**
+ * What the press measured about a cover while it had the bytes in hand.
+ *
+ * `fetchedOk: false` is the important one: the press used to swallow a failed
+ * cover download with a console warning and press the book anyway, so an author
+ * could end up with a finished edition and no cover and nothing telling them.
+ */
+export interface CoverMetrics {
+  width?: number;
+  height?: number;
+  bytes?: number;
+  contentType?: string;
+  fetchedOk: boolean;
 }
 
 export type BookType = 'ebook' | 'paperback' | 'hardcover' | 'audiobook';
@@ -152,6 +202,10 @@ export interface EpubBook {
   epubUrl?: string;
   /** Pressed PDF, offered alongside the EPUB. */
   pdfUrl?: string;
+  /** Measured by the press when it fetched the cover. */
+  coverMetrics?: CoverMetrics;
+  /** Chapters offered as a free sample. Null means the press picks the first. */
+  previewChapters?: number[] | null;
 
   // ── Rights ───────────────────────────────────────────────────────────────
   /** Absent means `clear`. `revoked` stops the delivery gate issuing links. */

@@ -1,8 +1,9 @@
 import { toPlainText } from './book-html';
-import { buildEpub, splitChapters, type Chapter } from './epub';
+import { buildEpub, splitChaptersWithStats, type Chapter, type ChapterStats } from './epub';
 import { ingest, type BookImage } from './ingest';
 import { buildPdf } from './pdf';
 import { contentHash, mintProvenance, type Provenance } from './provenance';
+import { unsupportedGlyphsIn } from './fonts';
 
 export interface ConversionRequest {
   bookId: string;
@@ -24,6 +25,23 @@ export interface ConversionResult {
   wordCount: number;
   chapterCount: number;
   warnings: string[];
+
+  /**
+   * Signals the Publishing Journey Report scores against.
+   *
+   * Every one is a by-product of work this function already does. Computing
+   * them here rather than later is what lets the report be honest about a book
+   * without re-reading the manuscript.
+   */
+  headingLevel: ChapterStats['headingLevel'];
+  frontMatterChapter: boolean;
+  emptyChapters: number;
+  shortestChapterWords: number;
+  longestChapterWords: number;
+  imageCount: number;
+  droppedImageCount: number;
+  unsupportedGlyphs: string[];
+  warningCodes: Array<{ code: string; count: number }>;
 }
 
 export class EmptyManuscriptError extends Error {
@@ -73,7 +91,8 @@ export async function convertManuscript(
     author: request.author,
   });
 
-  const chapters: Chapter[] = splitChapters(ingested.nodes, request.title);
+  const { chapters, stats } = splitChaptersWithStats(ingested.nodes, request.title);
+  const chapterList: Chapter[] = chapters;
 
   const images: BookImage[] = ingested.images;
 
@@ -83,7 +102,7 @@ export async function convertManuscript(
       author: request.author,
       language: request.language ?? 'en',
       description: request.description,
-      chapters,
+      chapters: chapterList,
       images,
       cover: request.cover ?? null,
       provenance,
@@ -91,7 +110,7 @@ export async function convertManuscript(
     buildPdf({
       title: request.title,
       author: request.author,
-      chapters,
+      chapters: chapterList,
       images,
       provenance,
     }),
@@ -104,7 +123,19 @@ export async function convertManuscript(
     contentSha256: contentHash([epub, pdf]),
     sourceFormat: ingested.sourceFormat,
     wordCount,
-    chapterCount: chapters.length,
+    chapterCount: chapterList.length,
     warnings: ingested.warnings,
+
+    headingLevel: stats.headingLevel,
+    frontMatterChapter: stats.frontMatterChapter,
+    emptyChapters: stats.emptyChapters,
+    shortestChapterWords: stats.shortestChapterWords,
+    longestChapterWords: stats.longestChapterWords,
+    imageCount: ingested.imageCount,
+    droppedImageCount: ingested.droppedImageCount,
+    // Checked against the fonts actually embedded in the PDF, so this reports
+    // what the author's own copy will look like rather than what Unicode allows.
+    unsupportedGlyphs: unsupportedGlyphsIn(plainText),
+    warningCodes: ingested.warningCodes,
   };
 }

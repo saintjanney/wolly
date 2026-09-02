@@ -10,12 +10,29 @@ export interface BookImage {
   data: Buffer;
 }
 
+/**
+ * A warning with a machine-readable code.
+ *
+ * `warnings` is free text and mixes things the author can act on ("an image was
+ * left out") with engine noise ("unrecognised paragraph style: Body Text 2").
+ * The report can only score, and should only show, the former. Showing an author
+ * a Word style name is how a report starts feeling like an exam it wrote itself.
+ */
+export interface WarningCode {
+  code: string;
+  count: number;
+}
+
 export interface IngestedManuscript {
   nodes: BookNode[];
   images: BookImage[];
   sourceFormat: 'docx' | 'markdown' | 'text';
   /** Non-fatal things worth telling the author, e.g. dropped legacy fields. */
   warnings: string[];
+  /** The same events, classified, for the publishing report. */
+  warningCodes: WarningCode[];
+  imageCount: number;
+  droppedImageCount: number;
 }
 
 /** Formats the press accepts today. */
@@ -77,6 +94,9 @@ export async function ingest(
   const kind = detectKind(fileName, data);
   const warnings: string[] = [];
   const images: BookImage[] = [];
+  const codes = new Map<string, number>();
+  const note = (code: string) => codes.set(code, (codes.get(code) ?? 0) + 1);
+  let droppedImageCount = 0;
 
   if (kind === 'docx') {
     let imageIndex = 0;
@@ -90,6 +110,8 @@ export async function ingest(
           const ext = IMAGE_TYPES[image.contentType];
           if (!ext) {
             warnings.push(`An image of type ${image.contentType} was left out.`);
+            note('image_dropped');
+            droppedImageCount += 1;
             return { src: '' };
           }
           imageIndex += 1;
@@ -101,16 +123,20 @@ export async function ingest(
       },
     );
     for (const message of result.messages) {
-      if (message.type === 'warning') warnings.push(message.message);
+      if (message.type === 'warning') {
+        warnings.push(message.message);
+        // Everything mammoth reports is engine noise unless we recognise it.
+        note('engine_note');
+      }
     }
-    return { nodes: sanitizeHtml(result.value), images, sourceFormat: 'docx', warnings };
+    return finish(sanitizeHtml(result.value), 'docx');
   }
 
   const text = data.toString('utf8');
 
   if (kind === 'markdown') {
     const html = await marked.parse(text, { async: true });
-    return { nodes: sanitizeHtml(html), images, sourceFormat: 'markdown', warnings };
+    return finish(sanitizeHtml(html), 'markdown');
   }
 
   // Plain text: blank-line-separated paragraphs; a lone short line followed by
@@ -121,7 +147,22 @@ export async function ingest(
     .map((block) => block.replace(/\s*\r?\n\s*/g, ' ').trim())
     .filter(Boolean);
   const html = paragraphs.map((p) => `<p>${escapeForParse(p)}</p>`).join('\n');
-  return { nodes: sanitizeHtml(html), images, sourceFormat: 'text', warnings };
+  return finish(sanitizeHtml(html), 'text');
+
+  function finish(
+    nodes: BookNode[],
+    sourceFormat: 'docx' | 'markdown' | 'text',
+  ): IngestedManuscript {
+    return {
+      nodes,
+      images,
+      sourceFormat,
+      warnings,
+      warningCodes: [...codes].map(([code, count]) => ({ code, count })),
+      imageCount: images.length,
+      droppedImageCount,
+    };
+  }
 }
 
 /**
