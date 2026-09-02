@@ -52,14 +52,10 @@ export class PayoutService {
       buckets.set(key, bucket);
     }
 
-    const now = new Date();
-    const currentKey = `${now.getFullYear()}-${now.getMonth()}`;
-
-    const payments: Payment[] = Array.from(buckets.entries()).map(([key, b]) => {
+    const payments: Payment[] = Array.from(buckets.values()).map((b) => {
       const netAmount = round2(b.totalRoyalty);
       const platformFee = round2(b.totalRevenue - b.totalRoyalty);
       const royaltyRate = b.totalRevenue > 0 ? b.totalRoyalty / b.totalRevenue : 0.7;
-      const isCurrent = key === currentKey;
       return {
         id: `payout-${b.periodStart.getTime()}`,
         userId,
@@ -67,7 +63,8 @@ export class PayoutService {
         amount: netAmount,
         currency: b.saleCurrency || currency,
         type: 'royalty',
-        status: isCurrent ? 'pending' : 'completed',
+        // Everything is owed until a real payout record says otherwise. See below.
+        status: 'pending',
         periodStart: b.periodStart,
         periodEnd: b.periodEnd,
         salesData: {
@@ -79,12 +76,20 @@ export class PayoutService {
         },
         paymentMethod: { type: 'bank_transfer', details: {} },
         createdAt: new Date(b.periodEnd.getFullYear(), b.periodEnd.getMonth() + 1, 1),
-        processedAt: isCurrent
-          ? undefined
-          : new Date(b.periodEnd.getFullYear(), b.periodEnd.getMonth() + 1, 5),
-        paidAt: isCurrent
-          ? undefined
-          : new Date(b.periodEnd.getFullYear(), b.periodEnd.getMonth() + 1, 7),
+        // NOT SET, deliberately.
+        //
+        // These used to be fabricated: any period that was not the current month
+        // was marked `completed` with a `processedAt` of the 5th and a `paidAt`
+        // of the 7th of the following month. No money had moved and the
+        // `payouts` collection is empty, so the screen told an author they had
+        // been paid, on a specific date, when they had not.
+        //
+        // What this function can honestly derive is EARNINGS, from completed
+        // purchases. Whether they were paid is a fact about a payout run, and it
+        // belongs to the `payouts` collection, which ops writes through the
+        // Admin SDK. Until a record exists there, everything owed is pending.
+        processedAt: undefined,
+        paidAt: undefined,
       };
     });
 

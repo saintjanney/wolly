@@ -169,13 +169,18 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Payouts are money owed to an author. SERVER-WRITTEN ONLY.
+    //
+    // `create` was previously open to any authenticated user writing their own
+    // uid, which let an author invent a payout record for any amount they
+    // liked. Nothing in the product has ever written this collection from a
+    // client, so the permission bought nothing and risked the one thing that
+    // must be trustworthy. Ops and the payout run use the Admin SDK, which
+    // bypasses rules entirely.
     match /payouts/{payoutId} {
       allow read: if isAuthenticated() && isOwner(resource.data.userId);
       allow read: if isAdmin();
-      allow create: if isAuthenticated()
-        && request.resource.data.userId == request.auth.uid;
-      allow update: if isAdmin();
-      allow delete: if false;
+      allow create, update, delete: if false;
     }
 
     // ── Reader state ───────────────────────────────────────────────────────

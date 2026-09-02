@@ -122,6 +122,19 @@ const cases = [
   }),
   // Someone else's book.
   testCase('a stranger edits the book', 'DENY', { ...EXISTING, title: 'Hijacked' }, 'someone-else'),
+
+  // Payouts: money owed. An author could previously invent one for themselves.
+  {
+    __name: 'author invents a payout for themselves',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'create',
+      path: '/databases/(default)/documents/payouts/p1',
+      time: '2026-09-02T00:00:00Z',
+      resource: { data: { userId: OWNER, amount: 999999, status: 'pending' } },
+    },
+  },
 ];
 
 async function main() {

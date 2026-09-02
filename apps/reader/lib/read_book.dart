@@ -37,7 +37,20 @@ class _ReadEpubState extends State<ReadEpub> {
   final BookmarkRepository _bookmarkRepo = BookmarkRepository();
   List<Bookmark> _bookmarks = [];
 
+  /// The key bookmarks and reading progress are stored under.
+  ///
+  /// This used to be the download URL's basename, which was unique only by
+  /// accident: `url` pointed at the author's uploaded manuscript, so the file
+  /// name differed per book. The press now rewrites `url` to
+  /// `converted/{bookId}/{fingerprint}/book.epub`, so EVERY pressed book has the
+  /// basename `book.epub` and they would all share one bookmark namespace,
+  /// showing a reader their notes from a different book. Signed download URLs
+  /// collapse the same way.
+  ///
+  /// The document id is the only stable identity. The old derivation remains as
+  /// a fallback for a Book built without one.
   String get _bookId =>
+      widget.book.id ??
       widget.book.downloadUrl.split('/').last.split('?').first;
 
   @override
