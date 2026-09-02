@@ -123,6 +123,69 @@ const cases = [
   // Someone else's book.
   testCase('a stranger edits the book', 'DENY', { ...EXISTING, title: 'Hijacked' }, 'someone-else'),
 
+  // ── The rights registry ─────────────────────────────────────────────────
+  //
+  // These need get()/exists() mocked, because the rule reaches the parent book
+  // to establish ownership. `bookOwnedBy` builds that pair.
+  ...(() => {
+    const BOOK = '/databases/(default)/documents/epubs/book1';
+    const GRANT = '/databases/(default)/documents/epubs/book1/rights/g1';
+    const bookOwnedBy = (uid) => [
+      { function: 'exists', args: [{ exact_value: BOOK }], result: { value: true } },
+      { function: 'get', args: [{ exact_value: BOOK }], result: { value: { data: { ownerUserId: uid } } } },
+    ];
+    const GRANT_DATA = {
+      bookId: 'book1',
+      ownerUserId: OWNER,
+      format: 'ebook',
+      territories: ['WORLD'],
+      languages: ['ALL'],
+      disposition: 'available',
+      holderKind: 'self',
+      holderName: 'Ama Mensah',
+      declaration: { declaredBy: OWNER, declarationText: 'I hold the rights...', declarationVersion: 'v1' },
+    };
+    const rights = (name, expectation, method, data, existing, uid = OWNER) => ({
+      __name: name,
+      expectation,
+      functionMocks: bookOwnedBy(OWNER),
+      request: {
+        auth: { uid, token: { sub: uid } },
+        method,
+        path: GRANT,
+        time: '2026-09-02T00:00:00Z',
+        ...(data ? { resource: { data } } : {}),
+      },
+      ...(existing ? { resource: { data: existing } } : {}),
+    });
+
+    return [
+      // The declared-versus-verified boundary. The whole point of the registry.
+      rights('author marks their own claim verified', 'DENY', 'create', {
+        ...GRANT_DATA, verificationState: 'verified',
+      }),
+      rights('author edits the declaration after signing it', 'DENY', 'update', {
+        ...GRANT_DATA,
+        declaration: { declaredBy: OWNER, declarationText: 'Something else entirely', declarationVersion: 'v1' },
+      }, GRANT_DATA),
+      rights('author promotes their claim to verified later', 'DENY', 'update', {
+        ...GRANT_DATA, verificationState: 'verified',
+      }, GRANT_DATA),
+
+      // What an author legitimately does.
+      rights('author records a grant', 'ALLOW', 'create', GRANT_DATA),
+      rights('author changes the disposition to licensed', 'ALLOW', 'update', {
+        ...GRANT_DATA, disposition: 'licensed',
+      }, GRANT_DATA),
+
+      // Privacy: a grant names a counterparty and can carry commercial terms.
+      rights('a stranger reads a grant', 'DENY', 'get', null, GRANT_DATA, 'nosy'),
+
+      // Archived, never deleted.
+      rights('author deletes a grant instead of archiving it', 'DENY', 'delete', null, GRANT_DATA),
+    ];
+  })(),
+
   // The press measures the cover. An author who could write coverMetrics could
   // claim a sharp cover they have not uploaded, and the report would believe it.
   testCase('author forges the cover measurements', 'DENY', {

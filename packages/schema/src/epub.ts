@@ -26,13 +26,25 @@ export type ManuscriptFormat = 'docx' | 'markdown' | 'text';
 export type ConversionStatus = 'requested' | 'processing' | 'ready' | 'failed';
 
 /**
- * Rights state for a published book, checked at the delivery gate.
+ * Whether a published book may still be downloaded. A TAKEDOWN GATE.
+ *
+ * NOT the rights registry. This is the switch `getBookDownloadUrl` reads to
+ * decide whether to issue a link at all; `RightsGrant` in `rights.ts` is the
+ * record of who may do what with the work. Collapsing them would mean an author
+ * editing a licence could revoke their own book.
  *
  * `revoked` does not and cannot delete copies already downloaded. What it does
  * is refuse to issue any new download link, which is the only enforcement point
  * that actually exists for an open format. See RIGHTS.md.
+ *
+ * The wire field stays `rightsStatus`: it is referenced in download.ts, in
+ * firestore.rules and in the rules tests, so renaming it would buy a migration
+ * for nothing.
  */
-export type RightsStatus = 'clear' | 'disputed' | 'revoked';
+export type BookAvailabilityStatus = 'clear' | 'disputed' | 'revoked';
+
+/** @deprecated Use {@link BookAvailabilityStatus}. Kept so existing imports compile. */
+export type RightsStatus = BookAvailabilityStatus;
 
 /**
  * The record of one pressing, written by @wolly/converter.
