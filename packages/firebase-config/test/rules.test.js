@@ -123,6 +123,50 @@ const cases = [
   // Someone else's book.
   testCase('a stranger edits the book', 'DENY', { ...EXISTING, title: 'Hijacked' }, 'someone-else'),
 
+  // The ledger. Earnings a client could author are not earnings.
+  {
+    __name: 'author writes themselves a sale',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'create',
+      path: '/databases/(default)/documents/transactions/t1',
+      time: '2026-09-02T00:00:00Z',
+      resource: {
+        data: {
+          buyerUserId: 'someone', authorUserId: OWNER,
+          grossMinor: 500000, authorEarningsMinor: 350000, royaltyRate: 0.7,
+        },
+      },
+    },
+  },
+  {
+    __name: 'author reads a sale of their own book',
+    expectation: 'ALLOW',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'get',
+      path: '/databases/(default)/documents/transactions/t1',
+      time: '2026-09-02T00:00:00Z',
+    },
+    resource: {
+      data: { buyerUserId: 'a-reader', authorUserId: OWNER, grossMinor: 1500 },
+    },
+  },
+  {
+    __name: 'a stranger reads someone else\'s sale',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: 'nosy', token: { sub: 'nosy' } },
+      method: 'get',
+      path: '/databases/(default)/documents/transactions/t1',
+      time: '2026-09-02T00:00:00Z',
+    },
+    resource: {
+      data: { buyerUserId: 'a-reader', authorUserId: OWNER, grossMinor: 1500 },
+    },
+  },
+
   // Payouts: money owed. An author could previously invent one for themselves.
   {
     __name: 'author invents a payout for themselves',

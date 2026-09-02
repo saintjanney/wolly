@@ -14,6 +14,8 @@ export const COLLECTIONS = {
   REVIEWS: 'reviews',
   /** Purchase / sales records (written by the reader on checkout). */
   PURCHASES: 'purchases',
+  /** Immutable money ledger, one row per completed sale. Server-written only. */
+  TRANSACTIONS: 'transactions',
   /** Per-user reading progress. */
   READING_PROGRESS: 'reading_progress',
   /** Per-user bookmarks. */
