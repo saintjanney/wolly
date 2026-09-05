@@ -113,9 +113,25 @@ costs a second read of the manuscript, and the report scores against them.
 | `conversion.headingLevel` | `'h1' \| 'h2' \| null`. Was computed and discarded; without it the report sees every book as one unmarked block |
 | `conversion.frontMatterChapter` | Content appeared before the first heading |
 | `conversion.emptyChapters`, `shortestChapterWords`, `longestChapterWords` | Usually a stray page break |
+| `conversion.headingShapedParagraphs` | Paragraphs that look like chapter titles but carry no heading. The commonest defect in a Word manuscript: titles bolded and centred instead of styled Heading 1, so the file looks right and carries no structure |
 | `conversion.imageCount`, `droppedImageCount` | |
 | `conversion.unsupportedGlyphs` | Characters the embedded fonts cannot draw. Non-empty means empty boxes in the author's own PDF, which is a **blocker** for a Ghanaian-language book |
 | `conversion.warningCodes` | Classified, so author-actionable notes can be shown and engine noise stays hidden |
+
+**Warning codes the press emits**, and who scores each:
+
+| Code | Scored by | Meaning |
+|---|---|---|
+| `encoding_fallback` | `clean_conversion` | The file was not valid UTF-8, so it was read as Windows-1252. Accented and Ghanaian-language characters may be wrong |
+| `mojibake` | `clean_conversion` | The text already contained replacement characters before upload. Only the author's original can fix it |
+| `image_dropped` | `images_intact` | An unsupported image type was left out |
+| `cover_fetch_failed` | `cover_present` | The press could not download the cover |
+| `engine_note` | nobody | The press talking to itself about Word style names. Never shown to an author |
+
+`AUTHOR_ACTIONABLE` in the report engine is the first two only. A code scored by
+a dedicated check must not also be counted by `clean_conversion`, or one dropped
+image costs points twice; the excluded codes are listed in `SCORED_ELSEWHERE`
+next to the check that owns each.
 | `coverMetrics` | `{ width, height, bytes, contentType, fetchedOk }`. `fetchedOk: false` used to be a silent `console.warn` |
 | `previewChapters` | Chapters offered as a free sample |
 

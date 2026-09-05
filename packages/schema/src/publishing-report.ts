@@ -39,6 +39,7 @@
  */
 
 import type { CoverMetrics } from './epub';
+import type { RightsVerificationState } from './rights';
 
 /** Bump when weights or thresholds change. See `changeReason: 'engine_update'`. */
 export const ENGINE_VERSION = 1;
@@ -212,18 +213,61 @@ export interface ScoredConversion {
   pressedAt?: string | null;
 }
 
+/**
+ * The part of the author's profile the score depends on.
+ *
+ * Every field here is named for something that exists on `users/{uid}`. The
+ * projection that fills it is in the server tier; the mapping is recorded on
+ * each field because getting it wrong is silent, not loud.
+ */
 export interface ScoredAuthor {
+  /** `users.displayName`. */
   displayName?: string | null;
+  /**
+   * `users.authorBio`, the long reader-facing biography, NOT the short
+   * `users.bio`. The check's own wording and its ten-word threshold describe
+   * the long one, so reading the short one would tell an author with a full
+   * biography to go and add a short note about themselves.
+   */
   bio?: string | null;
+  /**
+   * `users.paymentInfo.payment_option`: a document id into `payment_methods`.
+   *
+   * Deliberately NOT resolved to a human label like "mobile money". The check
+   * asks only whether a destination has been chosen, so resolving it would buy
+   * a second Firestore read per book and change nothing about the score.
+   */
   payoutMethod?: string | null;
+  /**
+   * Whether `users.paymentInfo.payment_details` actually holds an account.
+   *
+   * A method with no details cannot be paid, so both halves are required. This
+   * used to name a `payoutAccountRef` field that exists on no document
+   * anywhere, which made this BLOCKING check permanently unsatisfiable: the
+   * publish pre-flight would have refused every book on the platform forever.
+   */
   payoutAccountRef?: string | null;
 }
 
+/**
+ * The part of a RightsGrant the score depends on.
+ *
+ * Deliberately much smaller than RightsGrant, because ScoreInput is hashed
+ * whole by `canonicalInputs()` to guard the recompute trigger. A field named
+ * here but read by no check would make staff verifying a grant trigger a
+ * recompute that cannot change the score. Fields get added when a check reads
+ * them, not in anticipation.
+ *
+ * It previously named three fields the registry does not have: `territory`
+ * (the grant stores `territories`, an array), `status` (the author-set axis is
+ * `disposition`, and the only thing called a rights *status* on this platform
+ * is the takedown gate this must never be wired to), and a `self_declared`
+ * verification value that has never existed. Nothing read them, so the score
+ * survived by luck.
+ */
 export interface ScoredRight {
-  format?: string | null;
-  territory?: string | null;
-  status?: string | null;
-  verificationState?: 'self_declared' | 'verified' | null;
+  /** Matches `RightsGrant.verificationState`. Absent reads as unverified. */
+  verificationState?: RightsVerificationState | null;
 }
 
 export interface ScoredReview {
