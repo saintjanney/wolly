@@ -96,6 +96,24 @@ function completeInput() {
 
 // ── 1. Determinism ─────────────────────────────────────────────────────────
 
+/**
+ * The score a book gets when the author has finished everything and Wolly has
+ * not started: the author-owned share of whatever weight still applies.
+ *
+ * Pass ids this particular book takes out of the denominator (a free book has
+ * no payout work). Checks in AWAITING_WOLLY_TO_BUILD are always excluded,
+ * because nothing on the platform can satisfy them.
+ */
+function expectedScore(notApplicable = []) {
+  const excluded = new Set([...E.AWAITING_WOLLY_TO_BUILD, ...notApplicable]);
+  const applicable = E.CHECK_IDS.filter((id) => !excluded.has(id));
+  const total = applicable.reduce((sum, id) => sum + E.CHECKS[id].weight, 0);
+  const authorOwned = applicable
+    .filter((id) => E.CHECKS[id].owner === 'author')
+    .reduce((sum, id) => sum + E.CHECKS[id].weight, 0);
+  return Math.round((100 * authorOwned) / total);
+}
+
 test('same inputs produce the same score, every time', () => {
   const input = completeInput();
   const first = E.computeReport(input, { now: NOW });
@@ -167,8 +185,13 @@ test('making a book free changes the denominator, and that is not a punishment',
   freeInput.book.isFree = true;
   const free = E.computeReport(freeInput, { now: NOW });
 
-  assert.equal(paid.score, 90);
-  assert.equal(free.score, 89);
+  // Derived from the weights rather than hardcoded, so this keeps asserting the
+  // MECHANISM when the set of applicable checks changes (it changed when the
+  // checks with no writer left the denominator). A magic number here has to be
+  // re-typed by hand every time, which is how it stops being a check.
+  assert.equal(paid.score, expectedScore());
+  assert.equal(free.score, expectedScore(['payout_destination']));
+  assert.ok(free.score < paid.score, "a smaller denominator raises Wolly's share");
   assert.equal(
     free.checks.find((c) => c.id === 'payout_destination').state,
     'not_applicable',
@@ -226,12 +249,13 @@ test('an unpressed manuscript makes its dependents not-applicable', () => {
 // ── 4. No free points ──────────────────────────────────────────────────────
 
 test('not-applicable checks leave the denominator entirely', () => {
-  // A book with everything done EXCEPT that Wolly has not reviewed it should
-  // land at exactly 90: the two Wolly checks are worth 10 of the 100.
+  // A book with everything done EXCEPT that Wolly has not reviewed it scores
+  // exactly the author's share of the applicable weight. The two Wolly checks
+  // are the only thing outstanding, so the whole remainder is theirs.
   const report = E.computeReport(completeInput(), { now: NOW });
-  assert.equal(report.score, 90, 'an author who has done everything should reach exactly 90');
+  assert.equal(report.score, expectedScore(), 'an author who has done everything holds nothing back');
   assert.equal(report.pointsWithAuthor, 0);
-  assert.equal(report.pointsWithWolly, 10);
+  assert.equal(report.pointsWithWolly, 100 - report.score);
 });
 
 test('a fully reviewed book reaches 100', () => {
@@ -547,6 +571,53 @@ test('an unpressed book is blocked by the press, not by everything behind it', (
     !blockers.some((b) => b.id === 'glyph_coverage'),
     'a check waiting on the press must not also be reported as a blocker',
   );
+});
+
+/**
+ * The check that would have caught the worst bug in this file.
+ *
+ * rights_declared is `blocking: true`, and nothing on the platform writes a
+ * RightsGrant. The publish pre-flight is exactly the blocking subset, so the
+ * pre-flight refused EVERY book: a fully finished, priced, pressed,
+ * staff-approved book scored 93, banded ready_for_review, and could not be
+ * published, with nothing anyone could do about it.
+ */
+test('no blocking check is impossible to satisfy', () => {
+  for (const id of E.AWAITING_WOLLY_TO_BUILD) {
+    const report = E.computeReport(completeInput(), { now: NOW });
+    const check = report.checks.find((c) => c.id === id);
+    assert.equal(
+      check.state, 'not_applicable',
+      `${id} has no writer on the platform, so it must not be scored`,
+    );
+    assert.ok(
+      !E.blockingFailures(report).some((b) => b.id === id),
+      `${id} would block every book on the platform forever`,
+    );
+  }
+});
+
+test('a finished book can always reach the top band', () => {
+  // Whatever the applicable set is, an author who has done everything and a
+  // Wolly that has reviewed it must be able to publish. If this fails, some
+  // check has become unsatisfiable and the product has no working publish path.
+  const input = completeInput();
+  input.review = { editionReviewedAt: NOW, listingApprovedAt: NOW, editionFindings: [] };
+  input.rights = [];
+  input.book.previewChapters = null;
+  const report = E.computeReport(input, { now: NOW });
+  assert.equal(report.score, 100, 'the top of the scale must be reachable in the real world');
+  assert.equal(report.band, 'ready_to_publish');
+  assert.deepEqual(E.blockingFailures(report).map((b) => b.id), []);
+});
+
+test('a not-applicable check shows the author no instruction', () => {
+  // It used to render "Tell us which rights you hold" with no form to do it in.
+  const report = E.computeReport(completeInput(), { now: NOW });
+  for (const c of report.checks.filter((x) => x.state === 'not_applicable')) {
+    assert.equal(c.headline, '', `${c.id} tells the author to do something that does not apply`);
+    assert.equal(c.pointsAtStake, 0);
+  }
 });
 
 test('rights never claim verification Wolly has not performed', () => {

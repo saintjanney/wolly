@@ -169,6 +169,39 @@ export function unsafeGates(): Array<{ prerequisite: CheckId; gates: CheckId[]; 
  */
 export const EXEMPT_GATE: CheckId = 'manuscript_pressed';
 
+/**
+ * Checks whose input NOTHING on the platform writes yet.
+ *
+ * Scoring a check the author has no way to satisfy charges them for a feature
+ * Wolly has not built. That is invariant 4 in its most damaging form, because
+ * the points are unwinnable rather than merely unearned.
+ *
+ * It was not theoretical. `rights_declared` is `blocking: true`, and the publish
+ * pre-flight is exactly the blocking subset, so while it was scored the
+ * pre-flight refused EVERY book on the platform: a book with every author field
+ * complete, pressed, cover measured, priced, reviewed and approved scored 93,
+ * banded `ready_for_review`, and could not be published, with nothing any author
+ * or staff member could do about it. `ready_to_publish` was unreachable.
+ *
+ * The alternative of flipping the owner to Wolly is worse: the weight stays in
+ * the denominator at permanent zero credit, so the ceiling stays at 94 and the
+ * check renders as "waiting on Wolly" while its own copy still tells the author
+ * to go and do something.
+ *
+ * REMOVE AN ID HERE IN THE SAME COMMIT THAT SHIPS ITS WRITER. The weight comes
+ * back on its own; nothing else needs to change.
+ */
+export const AWAITING_WOLLY_TO_BUILD = new Set<CheckId>([
+  // Needs a rights form in the creator-hub writing `epubs/{bookId}/rights/{id}`.
+  // The model and the security rules exist (see rights.ts); the form does not,
+  // and `proposedDefaultGrant` has exactly one caller, which is a unit test.
+  'rights_declared',
+  // Needs a preview-chapter picker writing `epubs/{bookId}.previewChapters`.
+  // The press already offers the first chapter by default, so no reader is
+  // worse off in the meantime and no book is incomplete without it.
+  'preview_defined',
+]);
+
 // ── Inputs ─────────────────────────────────────────────────────────────────
 
 /** Everything the engine is allowed to look at. Nothing else may influence the score. */
@@ -650,12 +683,18 @@ export function computeReport(
 
   // Single cause, single cost. A dependent of a zeroed prerequisite is not
   // scored at all, so one missing thing is charged once.
+  //
+  // A check Wolly has built no way to satisfy is excluded by the same rule and
+  // for the same reason: it is not the author's outstanding work. Done here
+  // rather than inside each evaluator so there is one list to shorten when the
+  // missing surface ships. See AWAITING_WOLLY_TO_BUILD.
   for (const r of results) {
     const unmet = CHECKS[r.id].dependsOn.some((d) => (byId.get(d)?.credit ?? 0) === 0);
-    if (unmet) {
+    if (unmet || AWAITING_WOLLY_TO_BUILD.has(r.id)) {
       r.state = 'not_applicable';
       r.credit = 0;
       r.pointsAtStake = 0;
+      r.headline = '';
     }
   }
 
