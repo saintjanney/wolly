@@ -108,8 +108,29 @@ jobs:
       #   roles/firebasestorage.admin   resolve the default bucket
       #   roles/firebaserules.admin     compile and publish the rules
       #
-      # Verify the live ruleset independently with
-      # `npm --workspace @wolly/firebase-config run test:rules`.
+      # The rules suite runs against the ruleset ABOUT to be deployed, before it
+      # is deployed, and a failure stops the deploy.
+      #
+      # It used to be a manual command, on the reasoning that it needs
+      # credentials. CI has credentials. Left manual, it meant every rules
+      # change reached production having been checked only by whoever remembered
+      # to run it, which for a fatal-and-first deploy step is the wrong way
+      # round: the gate has to be the thing that runs, not the thing that is
+      # remembered.
+      #
+      # The service account is activated here rather than later because this is
+      # now the first step that needs a token; the blog deploy activates it
+      # again further down and activating twice is harmless. The suite exits
+      # non-zero when it cannot get a token, so a credential problem stops the
+      # deploy instead of quietly skipping the check.
+      - name: Verify security rules
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json"
+          GCLOUD_ACCESS_TOKEN="$(gcloud auth print-access-token)" \
+            npm --workspace @wolly/firebase-config run test:rules
+
       - name: Deploy security rules and indexes
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json

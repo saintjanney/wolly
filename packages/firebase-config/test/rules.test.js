@@ -2,12 +2,19 @@
  * Proves the book rules deny what they claim to.
  *
  * Uses the Firebase Rules test API, which evaluates the real ruleset source
- * server-side, so no emulator is needed. It DOES need credentials, which is why
- * this is a deliberate check rather than part of `npm test`:
+ * server-side, so no emulator is needed. It needs credentials, so it is not
+ * part of `npm test`; instead the deploy workflow runs it with the deploy
+ * service account, against the ruleset it is about to publish, immediately
+ * before the fatal rules-deploy step.
  *
- *   npm --workspace @wolly/firebase-config run test:rules
+ * Locally:
  *
- * Run it whenever the `epubs` block in firestore.rules changes. The claims it
+ *   npm --workspace @wolly/firebase-config run test:rules -- "$(gcloud auth print-access-token)"
+ *
+ * It was a manual check for a while, which meant a rules change could reach
+ * production having been verified only by whoever remembered to run it. For the
+ * one step in the deploy that is fatal on purpose, that was the wrong way
+ * round. The claims it
  * covers are the ones the product rests on: a takedown an author can undo is
  * not a takedown, and a pressing record an author can forge cannot identify a
  * leak. Both are enforced by rules alone, because the Admin SDK bypasses rules
