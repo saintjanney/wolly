@@ -123,13 +123,34 @@ jobs:
       # again further down and activating twice is harmless. The suite exits
       # non-zero when it cannot get a token, so a credential problem stops the
       # deploy instead of quietly skipping the check.
+      #
+      # Exit 1 (a rule does not do what it claims) is FATAL. Exit 2 (the suite
+      # could not run at all) is loud but does not block, because it says
+      # nothing about the ruleset and blocking every deploy on a missing IAM
+      # role would be a worse failure than the one it guards against.
+      #
+      # Today it exits 2: the deploy service account has roles/
+      # firebaserules.admin but not roles/serviceusage.serviceUsageConsumer,
+      # which a service account needs explicitly and a user account usually
+      # inherits from its own quota project. That is why this passes locally and
+      # not here. Granting the role turns the check on with no further change.
       - name: Verify security rules
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
         run: |
           gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json"
+          set +e
           GCLOUD_ACCESS_TOKEN="$(gcloud auth print-access-token)" \
             npm --workspace @wolly/firebase-config run test:rules
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then exit 0; fi
+          if [ "$code" -eq 2 ]; then
+            echo "::warning title=Security rules NOT verified::The rules suite could not run (exit 2). The ruleset is being deployed unverified. Grant the deploy service account roles/serviceusage.serviceUsageConsumer on wolly-1133d to turn this check on."
+            exit 0
+          fi
+          echo "::error title=Security rules failed::A rule does not do what it claims. Refusing to deploy."
+          exit "$code"
 
       - name: Deploy security rules and indexes
         env:

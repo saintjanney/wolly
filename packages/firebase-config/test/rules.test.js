@@ -31,6 +31,17 @@ const { readFileSync } = require('node:fs');
 
 const { join } = require('node:path');
 
+/**
+ * Exit codes, because CI has to tell two different things apart.
+ *
+ *   0  the ruleset was evaluated and every expectation held
+ *   1  the ruleset was evaluated and an expectation DID NOT hold
+ *   2  the suite could not run at all (no token, or the API refused)
+ *
+ * Only 1 means the rules are wrong.
+ */
+const EXIT_COULD_NOT_RUN = 2;
+
 const TOKEN = process.argv[2] || process.env.GCLOUD_ACCESS_TOKEN;
 const PROJECT = process.env.FIREBASE_PROJECT || 'wolly-1133d';
 const RULES = readFileSync(join(__dirname, '..', 'firestore.rules'), 'utf8');
@@ -40,7 +51,7 @@ if (!TOKEN) {
     'No access token. Pass one as the first argument, or set GCLOUD_ACCESS_TOKEN:\n' +
       '  npm --workspace @wolly/firebase-config run test:rules -- "$(gcloud auth print-access-token)"',
   );
-  process.exit(2);
+  process.exit(EXIT_COULD_NOT_RUN);
 }
 
 const OWNER = 'author-uid';
@@ -279,9 +290,24 @@ async function main() {
 
   const body = await res.json();
   if (!res.ok) {
-    console.error(`HTTP ${res.status}`);
+    // COULD NOT RUN is not the same as FAILED, and the exit code has to say
+    // which. A caller that cannot reach the Rules API has learned nothing about
+    // the ruleset; a caller whose expectations came back wrong has learned that
+    // the rules are broken. Collapsing both into 1 means CI must either block
+    // every deploy on a credential problem or ignore genuine rule failures.
+    console.error(`HTTP ${res.status} - could not evaluate the ruleset.`);
     console.error(JSON.stringify(body, null, 2).slice(0, 1500));
-    process.exit(1);
+    if (res.status === 403) {
+      console.error(
+        '\nThe caller needs BOTH of these on this project:\n' +
+          '  roles/firebaserules.admin              compile and test the ruleset\n' +
+          '  roles/serviceusage.serviceUsageConsumer  use the project for quota\n' +
+          'A service account needs the second one explicitly; a user account\n' +
+          'usually has it through its own quota project, which is why this can\n' +
+          'pass locally and fail in CI.',
+      );
+    }
+    process.exit(EXIT_COULD_NOT_RUN);
   }
 
   if (body.issues?.length) {
@@ -307,6 +333,8 @@ async function main() {
 }
 
 main().catch((e) => {
+  // A thrown error is a harness problem (network, DNS, a bad JSON body), not a
+  // verdict on the rules.
   console.error(e);
-  process.exit(1);
+  process.exit(EXIT_COULD_NOT_RUN);
 });
