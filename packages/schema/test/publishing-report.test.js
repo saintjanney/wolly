@@ -379,6 +379,113 @@ test('a properly marked manuscript is never nagged about headings', () => {
   assert.doesNotMatch(c.headline, /look like chapter titles/);
 });
 
+/**
+ * Invariant 4, "NO FREE POINTS", applied to the cover.
+ *
+ * cover_quality returned FULL credit whenever it had no dimensions to look at.
+ * The press only measures a cover it can fetch from Storage, so an externally
+ * hosted cover was never measured and collected six points for a check that
+ * could not run. It scored better than a measured mediocre cover.
+ */
+test('an unmeasured cover leaves the denominator instead of taking free points', () => {
+  const input = completeInput();
+  delete input.book.coverMetrics;
+  const c = E.computeReport(input, { now: NOW }).checks.find((x) => x.id === 'cover_quality');
+  assert.equal(c.state, 'not_applicable', 'a check that could not run must not be scored');
+  assert.equal(c.credit, 0);
+  assert.equal(c.pointsAtStake, 0, 'and it must not be shown as points the author can win back');
+});
+
+test('an unmeasurable cover never outscores a measured poor one', () => {
+  const unmeasured = completeInput();
+  delete unmeasured.book.coverMetrics;
+  const poor = completeInput();
+  poor.book.coverMetrics = { width: 400, height: 600, bytes: 20000, fetchedOk: true };
+
+  const scoreOf = (i) => E.computeReport(i, { now: NOW }).score;
+  assert.ok(
+    scoreOf(unmeasured) >= scoreOf(poor),
+    'leaving the denominator is expected to read higher than scoring badly; what must not happen is CREDIT for the unmeasured one',
+  );
+  const c = E.computeReport(unmeasured, { now: NOW }).checks.find((x) => x.id === 'cover_quality');
+  assert.notEqual(c.credit, 1, 'the bug was awarding credit 1 here');
+});
+
+/**
+ * A cover the press could not fetch is charged exactly once, by cover_present.
+ * cover_quality depends on it, so invariant 3 excludes this check rather than
+ * charging a second time.
+ */
+test('a cover Wolly could not open is charged once, at cover_present', () => {
+  const input = completeInput();
+  input.book.coverMetrics = { fetchedOk: false };
+  const report = E.computeReport(input, { now: NOW });
+  assert.equal(report.checks.find((c) => c.id === 'cover_present').credit, 0);
+  assert.equal(report.checks.find((c) => c.id === 'cover_quality').state, 'not_applicable');
+});
+
+/**
+ * Invariant 3, "SINGLE CAUSE, SINGLE COST", applied to warnings.
+ *
+ * `image_dropped` was in AUTHOR_ACTIONABLE and also scored by images_intact, so
+ * one dropped image quietly cost points in two checks. Same for a failed cover
+ * fetch, which cover_quality now owns.
+ */
+test('one dropped image costs points once, not twice', () => {
+  const input = completeInput();
+  input.book.conversion.imageCount = 9;
+  input.book.conversion.droppedImageCount = 1;
+  input.book.conversion.warningCodes = [{ code: 'image_dropped', count: 1 }];
+
+  const report = E.computeReport(input, { now: NOW });
+  const images = report.checks.find((c) => c.id === 'images_intact');
+  const clean = report.checks.find((c) => c.id === 'clean_conversion');
+
+  assert.ok(images.credit < 1, 'images_intact is the check that owns dropped images');
+  assert.equal(clean.credit, 1, 'clean_conversion must not charge for it a second time');
+});
+
+test('a failed cover fetch costs points once, not twice', () => {
+  const input = completeInput();
+  input.book.coverMetrics = { fetchedOk: false };
+  input.book.conversion.warningCodes = [{ code: 'cover_fetch_failed', count: 1 }];
+  const report = E.computeReport(input, { now: NOW });
+  assert.equal(report.checks.find((c) => c.id === 'cover_quality').credit, 0);
+  assert.equal(report.checks.find((c) => c.id === 'clean_conversion').credit, 1);
+});
+
+test('engine noise never reaches the author or the score', () => {
+  const input = completeInput();
+  input.book.conversion.warningCodes = [{ code: 'engine_note', count: 14 }];
+  const clean = E.computeReport(input, { now: NOW }).checks.find((c) => c.id === 'clean_conversion');
+  assert.equal(clean.credit, 1, 'a Word style name is not the author\'s problem');
+  assert.deepEqual(clean.evidence.codes, []);
+});
+
+/**
+ * What clean_conversion is actually for now: did the author's characters
+ * survive? On this platform that is the check that matters most, because the
+ * marked letters of Twi, Ewe, Ga and Dagbani are distinct letters rather than
+ * decorated Latin ones, so losing them changes words.
+ */
+test('a manuscript saved in the wrong encoding is told so, in those words', () => {
+  const input = completeInput();
+  input.book.conversion.warningCodes = [{ code: 'encoding_fallback', count: 1 }];
+  const c = E.computeReport(input, { now: NOW }).checks.find((x) => x.id === 'clean_conversion');
+  assert.ok(c.credit < 1 && c.credit > 0);
+  assert.match(c.detail, /UTF-8/);
+});
+
+test('characters already damaged before upload are scored worse than a guess', () => {
+  const guess = completeInput();
+  guess.book.conversion.warningCodes = [{ code: 'encoding_fallback', count: 1 }];
+  const broken = completeInput();
+  broken.book.conversion.warningCodes = [{ code: 'mojibake', count: 1 }];
+
+  const creditOf = (i) => E.computeReport(i, { now: NOW }).checks.find((c) => c.id === 'clean_conversion').credit;
+  assert.ok(creditOf(broken) < creditOf(guess), 'lost characters are worse than a recoverable guess');
+});
+
 test('rights never claim verification Wolly has not performed', () => {
   const report = E.computeReport(completeInput(), { now: NOW });
   const rights = report.checks.find((c) => c.id === 'rights_declared');

@@ -367,16 +367,36 @@ const EVALUATORS: Record<CheckId, Evaluator> = {
       'Readers can jump straight to any chapter.', evidence);
   },
 
+  /**
+   * Did the author's characters survive the trip?
+   *
+   * Narrowed from "anything the press grumbled about". It used to also count
+   * dropped images and failed cover fetches, both of which have their own
+   * checks, so one dropped image cost points twice and broke invariant 3. What
+   * is left is the one thing nothing else measures, and on this platform it is
+   * the thing that matters most: E, O and N with their marks are distinct
+   * letters in Twi, Ewe, Ga and Dagbani, so losing them changes words rather
+   * than blurring them.
+   */
   clean_conversion: ({ book }) => {
-    // Only author-actionable codes count. Showing someone a Word style name is
-    // how a report starts feeling like an exam it wrote itself.
     const codes = (book.conversion?.warningCodes ?? []).filter((w) => AUTHOR_ACTIONABLE.has(w.code));
-    const n = codes.reduce((sum, w) => sum + (w.count || 1), 0);
-    const credit = n === 0 ? 1 : n <= 2 ? 0.7 : n <= 5 ? 0.4 : 0.1;
-    return result('clean_conversion', credit,
-      n === 0 ? 'Your manuscript converted cleanly' : `${n} thing${n === 1 ? '' : 's'} to look at in the conversion`,
-      n === 0 ? 'Nothing was dropped or changed.' : 'These are parts of your file Wolly could not carry across exactly.',
-      { actionableWarnings: n, codes: codes.map((c) => c.code) });
+    const names = codes.map((c) => c.code);
+    const damaged = names.includes('mojibake');
+    const guessed = names.includes('encoding_fallback');
+    const evidence = { codes: names };
+
+    if (damaged) {
+      return result('clean_conversion', 0.2, 'Some characters did not survive your file',
+        'They were already damaged before the file reached Wolly. Only your original can fix them, so it is worth checking the book before readers do.',
+        evidence);
+    }
+    if (guessed) {
+      return result('clean_conversion', 0.6, 'Wolly had to guess how your file was saved',
+        'It was not saved as UTF-8, so accented and Ghanaian-language characters may be wrong. Re-saving as UTF-8 removes the guess.',
+        evidence);
+    }
+    return result('clean_conversion', 1, 'Every character came through as you typed it',
+      'Nothing in your text was changed or lost.', evidence);
   },
 
   images_intact: ({ book }) => {
@@ -425,8 +445,20 @@ const EVALUATORS: Record<CheckId, Evaluator> = {
 
   cover_quality: ({ book }) => {
     const m = book.coverMetrics;
+    // NOT full credit, which is what this returned before.
+    //
+    // The press writes coverMetrics only when the cover URL resolves to a
+    // Storage object it can fetch, so an externally hosted cover is never
+    // measured. Six points for a check that could not run is exactly the free
+    // points invariant 4 forbids: it made an unmeasurable cover score better
+    // than a measured mediocre one. Unmeasured leaves the denominator instead.
+    //
+    // A cover the press FAILED to fetch does not reach here: cover_present
+    // scores that zero, and this check depends on it, so invariant 3 already
+    // charges that once and excludes this one.
     if (!m || !m.width || !m.height) {
-      return result('cover_quality', 1, 'Cover looks fine', 'Nothing to change.', { measured: false });
+      return notApplicable('cover_quality',
+        'Wolly has not measured this cover yet.', { measured: false });
     }
     const shortest = Math.min(m.width, m.height);
     const ratio = m.height / m.width;
@@ -540,12 +572,27 @@ const EVALUATORS: Record<CheckId, Evaluator> = {
  * style, for instance) and never enters the score or the screen.
  */
 export const AUTHOR_ACTIONABLE = new Set([
-  'image_dropped',
-  'image_unreadable',
-  'cover_fetch_failed',
   'mojibake',
   'encoding_fallback',
-  'remote_image_dropped',
+]);
+
+/**
+ * Codes deliberately NOT scored here, because another check already charges for
+ * them, and invariant 3 says one cause costs once.
+ *
+ * `image_dropped` is scored by `images_intact`, which knows how many images
+ * there were and can therefore say "2 of 30" instead of "2". `cover_fetch_
+ * failed` is scored by `cover_quality`. Both were in the actionable set, so a
+ * single dropped image quietly cost points twice.
+ *
+ * `engine_note` is the press talking to itself about Word style names. Showing
+ * an author a Word style name is how a report starts feeling like an exam it
+ * wrote itself.
+ */
+export const SCORED_ELSEWHERE = new Set([
+  'image_dropped',
+  'cover_fetch_failed',
+  'engine_note',
 ]);
 
 // ── The computation ────────────────────────────────────────────────────────

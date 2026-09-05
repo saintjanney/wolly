@@ -472,6 +472,59 @@ describe('the rest of the corpus', () => {
     assert.equal(result.chapterCount, 1);
   });
 
+  /**
+   * The silent-loss bug this suite exists to prevent coming back.
+   *
+   * `data.toString('utf8')` substitutes U+FFFD for every byte it cannot read
+   * and says nothing, so a .txt saved by an older Windows editor lost every
+   * marked character without a warning. On this platform that changes words:
+   * the marked letters of Twi, Ewe, Ga and Dagbani are distinct letters, not
+   * decorated Latin ones.
+   */
+  it('recovers a manuscript that was not saved as UTF-8, and says so', async () => {
+    // "Mepa wo kyɛw" is not representable in Windows-1252, so the fixture uses
+    // the accented Latin text such a file really would carry: bytes that are
+    // valid cp1252 and invalid UTF-8.
+    const cp1252 = Buffer.from([
+      0x4c, 0x65, 0x20, 0x63, 0x61, 0x66, 0xe9, 0x2e, 0x0a, 0x0a, // "Le café.\n\n"
+      0x4e, 0x61, 0xef, 0x76, 0x65, 0x74, 0xe9, 0x2e,             // "Naïveté."
+    ]);
+    const out = await ingest('notes.txt', cp1252);
+    const text = toPlainText(out.nodes);
+
+    assert.match(text, /caf\u00e9/, 'the accented characters must survive');
+    assert.match(text, /Na\u00efvet\u00e9/);
+    assert.ok(!text.includes('\uFFFD'), 'nothing may be replaced silently');
+
+    const codes = out.warningCodes.map((c) => c.code);
+    assert.ok(codes.includes('encoding_fallback'), `expected encoding_fallback, got ${codes.join(',')}`);
+    assert.ok(
+      out.warnings.some((w) => /UTF-8/.test(w)),
+      'the author is told in words, not only in a code they never see',
+    );
+  });
+
+  it('reads a normal UTF-8 manuscript without complaining', async () => {
+    const out = await ingest('notes.txt', Buffer.from('Mepa wo ky\u025bw.\n\nƆbaa no b\u0259.', 'utf8'));
+    assert.deepEqual(out.warningCodes.map((c) => c.code), [], 'no warning on a clean file');
+    assert.match(toPlainText(out.nodes), /ky\u025bw/, 'Twi characters survive untouched');
+  });
+
+  it('strips a UTF-8 byte order mark instead of leaving it in the text', async () => {
+    const withBom = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('Chapter one.', 'utf8')]);
+    const out = await ingest('notes.txt', withBom);
+    assert.ok(!toPlainText(out.nodes).includes('\uFEFF'), 'the BOM must not survive as a character');
+    assert.deepEqual(out.warningCodes.map((c) => c.code), [], 'a BOM is normal, not a warning');
+  });
+
+  it('reports characters that were already damaged before upload', async () => {
+    // Valid UTF-8 that already encodes U+FFFD: someone else's bad decode,
+    // baked in. Nothing here can recover it, but the author still has the
+    // original, so they are the one who needs telling.
+    const out = await ingest('notes.txt', Buffer.from('The caf\uFFFD was closed.', 'utf8'));
+    assert.ok(out.warningCodes.map((c) => c.code).includes('mojibake'));
+  });
+
   it('presses a messy Word document', async () => {
     const result = await press('messy', 'messy.docx', await fixtures.messyDocx());
     const epub = await openEpub(result.epub);
