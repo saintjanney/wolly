@@ -797,7 +797,26 @@ function sortDeep(value: unknown): unknown {
   return value;
 }
 
-/** The publish pre-flight is the blocking subset of the same checks, never separate logic. */
+/**
+ * The publish pre-flight is the blocking subset of the same checks, never
+ * separate logic.
+ *
+ * A NOT-APPLICABLE CHECK CANNOT BLOCK. This filtered on `state !== 'pass'`,
+ * which counted not-applicable as a failure, and the clearest case was the one
+ * the header at the top of this file uses to explain invariant 2: a free book
+ * has no payout work, so `payout_destination` correctly leaves the denominator,
+ * and the book then scored 100, banded `ready_to_publish`, and could not be
+ * published. The screen and the button disagreed, which is the one thing a
+ * pre-flight built from the same checks exists to prevent.
+ *
+ * Excluding them does not open a hole. The other way a check becomes
+ * not-applicable is an unmet prerequisite, and a prerequisite that matters is
+ * itself blocking and fails on its own account: an unpressed book is stopped by
+ * `manuscript_pressed`, not by the six checks waiting behind it. That is
+ * invariant 3 applied to the gate rather than only to the score.
+ */
 export function blockingFailures(report: PublishingReport): CheckResult[] {
-  return report.checks.filter((r) => CHECKS[r.id].blocking && r.state !== 'pass');
+  return report.checks.filter(
+    (r) => CHECKS[r.id].blocking && r.state !== 'pass' && r.state !== 'not_applicable',
+  );
 }

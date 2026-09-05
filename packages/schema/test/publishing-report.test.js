@@ -486,6 +486,69 @@ test('characters already damaged before upload are scored worse than a guess', (
   assert.ok(creditOf(broken) < creditOf(guess), 'lost characters are worse than a recoverable guess');
 });
 
+/**
+ * The score and the publish button must never disagree.
+ *
+ * blockingFailures() filtered on `state !== 'pass'`, so a not-applicable check
+ * counted as a failure. The sharpest case is the one the file header uses to
+ * explain invariant 2: a free book has no payout work, so payout_destination
+ * correctly leaves the denominator, and the book then read 100%,
+ * "ready to publish", and could not be published.
+ */
+test('a free book that is otherwise finished can actually be published', () => {
+  const input = completeInput();
+  input.book.isFree = true;
+  input.book.price = 0;
+  const report = E.computeReport(input, { now: NOW });
+
+  const payout = report.checks.find((c) => c.id === 'payout_destination');
+  assert.equal(payout.state, 'not_applicable', 'a free book has no payout work');
+
+  const blockers = E.blockingFailures(report).map((b) => b.id);
+  assert.ok(
+    !blockers.includes('payout_destination'),
+    `a check that does not apply must not block, got: ${blockers.join(', ')}`,
+  );
+
+  // With Wolly's own review done too, nothing at all is left in the way.
+  const reviewed = E.computeReport(
+    { ...input, review: { editionReviewedAt: NOW, editionFindings: [], listingApprovedAt: NOW } },
+    { now: NOW },
+  );
+  assert.deepEqual(E.blockingFailures(reviewed).map((b) => b.id), []);
+  assert.equal(reviewed.band, 'ready_to_publish');
+});
+
+test('the band and the pre-flight always agree', () => {
+  // If the screen says ready to publish, the button must publish.
+  for (const free of [true, false]) {
+    const input = completeInput();
+    input.book.isFree = free;
+    if (free) input.book.price = 0;
+    const report = E.computeReport(
+      { ...input, review: { editionReviewedAt: NOW, editionFindings: [], listingApprovedAt: NOW } },
+      { now: NOW },
+    );
+    if (report.band === 'ready_to_publish') {
+      assert.equal(
+        E.blockingFailures(report).length, 0,
+        `band says ready_to_publish but the pre-flight blocks (isFree=${free})`,
+      );
+    }
+  }
+});
+
+test('an unpressed book is blocked by the press, not by everything behind it', () => {
+  // Invariant 3 applied to the gate: one missing thing is reported once.
+  const input = emptyInput();
+  const blockers = E.blockingFailures(E.computeReport(input, { now: NOW }));
+  assert.ok(blockers.some((b) => b.id === 'manuscript_pressed'), 'the real cause must block');
+  assert.ok(
+    !blockers.some((b) => b.id === 'glyph_coverage'),
+    'a check waiting on the press must not also be reported as a blocker',
+  );
+});
+
 test('rights never claim verification Wolly has not performed', () => {
   const report = E.computeReport(completeInput(), { now: NOW });
   const rights = report.checks.find((c) => c.id === 'rights_declared');
