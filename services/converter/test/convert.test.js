@@ -23,7 +23,7 @@ const { PDFDocument } = require('pdf-lib');
 const { convertManuscript, EmptyManuscriptError } = require('../lib/convert');
 const { UnsupportedManuscriptError } = require('../lib/ingest');
 const { sanitizeHtml, toXhtml, toPlainText } = require('../lib/book-html');
-const { splitChapters } = require('../lib/epub');
+const { splitChapters, splitChaptersWithStats } = require('../lib/epub');
 const { ingest } = require('../lib/ingest');
 
 const fixtures = require('./fixtures');
@@ -237,6 +237,78 @@ describe('chapter splitting', () => {
     assert.equal(chapters.length, 2);
     assert.equal(chapters[0].title, 'Fallback');
     assert.match(toPlainText(chapters[0].nodes), /front matter/);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+/**
+ * The commonest real defect in a Word manuscript: chapter titles that were
+ * bolded and centred instead of styled as Heading 1. The file looks right and
+ * carries no structure, so the press finds no headings and the book becomes one
+ * unnavigable block.
+ *
+ * The report will only tell an author about this, so the count has to be
+ * trustworthy. The asymmetry drives the test: a miss costs a hint, but a false
+ * positive sends someone hunting a manuscript for a problem that is not there.
+ * Most of these cases are therefore about NOT counting things.
+ */
+describe('heading-shaped paragraphs', () => {
+  const count = (html) => splitChaptersWithStats(sanitizeHtml(html), 'F').stats.headingShapedParagraphs;
+
+  it('counts a bolded line standing in for a chapter title', () => {
+    assert.equal(count('<p><strong>The Long Walk Home</strong></p><p>Body text.</p>'), 1);
+  });
+
+  it('counts titles named as divisions, however they are styled', () => {
+    assert.equal(count('<p>Chapter One</p><p>x</p><p>PART TWO</p><p>y</p><p>Prologue</p>'), 3);
+  });
+
+  it('counts numbered and roman-numeral titles', () => {
+    assert.equal(count('<p>IV</p><p>a</p><p>12.</p><p>b</p>'), 2);
+  });
+
+  it('counts a shouted title', () => {
+    assert.equal(count('<p>THE RIVER</p><p>Body text.</p>'), 1);
+  });
+
+  it('does not count ordinary prose, however short', () => {
+    // "He left." is short and bold-free. Counting it would be the false
+    // positive that makes the whole signal untrustworthy.
+    assert.equal(count('<p>He left.</p><p>She stayed.</p><p>Then it rained.</p>'), 0);
+  });
+
+  it('does not count a long bolded run, which is emphasis and not a title', () => {
+    const long = 'This whole sentence is bold for emphasis and runs well past sixty characters';
+    assert.equal(count(`<p><strong>${long}</strong></p>`), 0);
+  });
+
+  it('does not count a bolded lead-in that ends like a sentence', () => {
+    assert.equal(count('<p><strong>Note:</strong></p><p>body</p>'), 0);
+  });
+
+  it('does not count a single initial', () => {
+    // "A" is upper-case and short, but one letter is not a chapter title.
+    assert.equal(count('<p>A</p><p>body</p>'), 0);
+  });
+
+  it('does not count short bold lines nested in quotes or lists', () => {
+    assert.equal(count('<blockquote><p><strong>Ama Ata Aidoo</strong></p></blockquote>'), 0);
+    assert.equal(count('<ul><li><strong>Fufu</strong></li><li><strong>Banku</strong></li></ul>'), 0);
+  });
+
+  it('reaches the threshold the report actually scores on', () => {
+    // The report stays silent below three, so a manuscript with real chapter
+    // titles left unmarked must clear it.
+    const html = ['One', 'Two', 'Three', 'Four']
+      .map((t) => `<p><strong>Chapter ${t}</strong></p><p>Body of the chapter.</p>`).join('');
+    const stats = splitChaptersWithStats(sanitizeHtml(html), 'F').stats;
+    assert.equal(stats.headingLevel, null, 'the press finds no headings, which is the whole problem');
+    assert.ok(stats.headingShapedParagraphs >= 3, `expected >= 3, got ${stats.headingShapedParagraphs}`);
+  });
+
+  it('stays quiet on a properly marked manuscript', () => {
+    const html = '<h1>Chapter One</h1><p>Body.</p><h1>Chapter Two</h1><p>Body.</p>';
+    assert.equal(count(html), 0, 'never nag a book that did it right');
   });
 });
 

@@ -160,6 +160,7 @@ export const onConversionRequested = onDocumentWritten(
           emptyChapters: result.emptyChapters,
           shortestChapterWords: result.shortestChapterWords,
           longestChapterWords: result.longestChapterWords,
+          headingShapedParagraphs: result.headingShapedParagraphs,
           imageCount: result.imageCount,
           droppedImageCount: result.droppedImageCount,
           unsupportedGlyphs: result.unsupportedGlyphs.slice(0, 20),

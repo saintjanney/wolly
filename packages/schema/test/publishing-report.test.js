@@ -334,6 +334,51 @@ test('a short work is never told it is too short', () => {
   assert.ok(structure.credit >= 0.6, 'a short piece is allowed to be one continuous piece');
 });
 
+/**
+ * The author who bolded their chapter titles instead of styling them.
+ *
+ * This is the commonest real defect in a Word manuscript, and the report was
+ * silent about it twice over: the press never emitted the count, and the
+ * evaluator consulted it AFTER the `headingLevel === null` branch returned,
+ * which is the only situation where it means anything. Both halves are pinned
+ * here because either one alone brings the silence back.
+ */
+test('a manuscript with unmarked chapter titles is told exactly that', () => {
+  const long = completeInput();
+  long.book.conversion.headingLevel = null;
+  long.book.conversion.wordCount = 40000;
+  long.book.conversion.headingShapedParagraphs = 12;
+  const structure = (i) => E.computeReport(i, { now: NOW }).checks.find((c) => c.id === 'chapter_structure');
+
+  const named = structure(long);
+  assert.match(named.headline, /12 lines look like chapter titles/);
+  assert.match(named.detail, /Heading 1/, 'name the fix, not just the fault');
+
+  // Same book, signal absent: the old generic wording, and the SAME credit.
+  const blind = structure({ ...long, book: { ...long.book, conversion: { ...long.book.conversion, headingShapedParagraphs: undefined } } });
+  assert.match(blind.headline, /Mark your chapter titles/);
+  assert.equal(named.credit, blind.credit, 'the count changes the words, never the score');
+});
+
+test('a short piece with unmarked titles keeps its credit and gains the hint', () => {
+  const short = completeInput();
+  short.book.conversion.headingLevel = null;
+  short.book.conversion.wordCount = 900;
+  short.book.conversion.headingShapedParagraphs = 4;
+  const c = E.computeReport(short, { now: NOW }).checks.find((x) => x.id === 'chapter_structure');
+  assert.equal(c.credit, 0.6, 'a short work is still allowed to be one piece');
+  assert.match(c.headline, /4 lines look like chapter titles/);
+});
+
+test('a properly marked manuscript is never nagged about headings', () => {
+  const ok = completeInput();
+  ok.book.conversion.headingLevel = 'h1';
+  ok.book.conversion.headingShapedParagraphs = 0;
+  const c = E.computeReport(ok, { now: NOW }).checks.find((x) => x.id === 'chapter_structure');
+  assert.equal(c.credit, 1);
+  assert.doesNotMatch(c.headline, /look like chapter titles/);
+});
+
 test('rights never claim verification Wolly has not performed', () => {
   const report = E.computeReport(completeInput(), { now: NOW });
   const rights = report.checks.find((c) => c.id === 'rights_declared');

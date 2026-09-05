@@ -85,6 +85,16 @@ export interface BookConversion {
   emptyChapters?: number;
   shortestChapterWords?: number;
   longestChapterWords?: number;
+  /**
+   * Paragraphs that look like chapter titles but carry no heading.
+   *
+   * The commonest defect in a manuscript typed in Word: the author bolded and
+   * centred their chapter titles instead of applying Heading 1, so the file
+   * looks right and carries no structure. Without this the report can only say
+   * "this reads as one continuous piece", which tells the author nothing about
+   * what to change.
+   */
+  headingShapedParagraphs?: number;
   imageCount?: number;
   droppedImageCount?: number;
   /**

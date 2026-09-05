@@ -38,6 +38,7 @@ export interface ConversionResult {
   emptyChapters: number;
   shortestChapterWords: number;
   longestChapterWords: number;
+  headingShapedParagraphs: number;
   imageCount: number;
   droppedImageCount: number;
   unsupportedGlyphs: string[];
@@ -131,6 +132,7 @@ export async function convertManuscript(
     emptyChapters: stats.emptyChapters,
     shortestChapterWords: stats.shortestChapterWords,
     longestChapterWords: stats.longestChapterWords,
+    headingShapedParagraphs: stats.headingShapedParagraphs,
     imageCount: ingested.imageCount,
     droppedImageCount: ingested.droppedImageCount,
     // Checked against the fonts actually embedded in the PDF, so this reports

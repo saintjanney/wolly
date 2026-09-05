@@ -325,14 +325,35 @@ const EVALUATORS: Record<CheckId, Evaluator> = {
     const headingShaped = c.headingShapedParagraphs ?? 0;
     const evidence = { headingLevel: level, wordCount, emptyChapters: empty, shortestChapterWords: shortest, headingShapedParagraphs: headingShaped };
 
-    if (level === null && wordCount >= 8000) {
-      return result('chapter_structure', 0, 'Mark your chapter titles as headings',
-        'Readers cannot jump between chapters yet, and a long book without chapter marks is hard to come back to.', evidence);
-    }
+    // The heading-shaped count is ONLY diagnostic when the press found no
+    // headings, so it has to be consulted inside this branch. Checked after it,
+    // as it once was, it could never fire in the case it was written for: the
+    // author who bolded their chapter titles instead of styling them.
+    //
+    // It changes the WORDS ONLY, never the credit. "Twelve lines look like
+    // chapter titles" and "this reads as one continuous piece" describe the
+    // same amount of remaining work; one of them says where to start.
     if (level === null) {
+      const shaped = headingShaped >= 3;
+      if (wordCount >= 8000) {
+        return result('chapter_structure', 0,
+          shaped
+            ? `${headingShaped} lines look like chapter titles but are not marked as headings`
+            : 'Mark your chapter titles as headings',
+          shaped
+            ? 'Style them as Heading 1 in your writing app and readers can jump straight to a chapter.'
+            : 'Readers cannot jump between chapters yet, and a long book without chapter marks is hard to come back to.',
+          evidence);
+      }
       // A short story is allowed to be one piece. This is never a failure.
-      return result('chapter_structure', 0.6, 'This reads as one continuous piece',
-        'That is fine for a short work. Marking headings would let readers jump around.', evidence);
+      return result('chapter_structure', 0.6,
+        shaped
+          ? `${headingShaped} lines look like chapter titles but are not marked as headings`
+          : 'This reads as one continuous piece',
+        shaped
+          ? 'Styling them as Heading 1 would let readers jump straight to a chapter.'
+          : 'That is fine for a short work. Marking headings would let readers jump around.',
+        evidence);
     }
     if (headingShaped >= 3) {
       return result('chapter_structure', 0.7, `${headingShaped} lines look like chapter titles but are not marked as headings`,
