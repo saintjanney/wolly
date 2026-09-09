@@ -146,10 +146,27 @@ export class TitleService {
     return coverUrl;
   }
 
-  /** Live view of one Title, so the press and the report update as they land. */
-  static watch(bookId: string, onChange: (book: EpubBook | null) => void): Unsubscribe {
-    return onSnapshot(doc(db, EPUBS, bookId), (snap) => {
-      onChange(snap.exists() ? ({ ...(snap.data() as EpubBook), id: snap.id }) : null);
-    });
+  /**
+   * Live view of one Title, so the press and the report update as they land.
+   *
+   * THE ERROR CALLBACK IS NOT OPTIONAL. Without it a rules denial (signed out,
+   * an expired session, somebody else's book) throws into the void and the
+   * screen waits for a snapshot that will never arrive, showing "Loading" for
+   * ever. That is the same swallowed permission error that once left the
+   * reader's Library silently empty, and it is invisible to typecheck and to
+   * the build.
+   */
+  static watch(
+    bookId: string,
+    onChange: (book: EpubBook | null) => void,
+    onError: (error: Error) => void,
+  ): Unsubscribe {
+    return onSnapshot(
+      doc(db, EPUBS, bookId),
+      (snap) => {
+        onChange(snap.exists() ? ({ ...(snap.data() as EpubBook), id: snap.id }) : null);
+      },
+      onError,
+    );
   }
 }

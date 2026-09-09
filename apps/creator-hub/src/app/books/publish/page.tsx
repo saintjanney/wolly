@@ -50,6 +50,7 @@ function Publish() {
   const [terms, setTerms] = useState<RevenueTerms | null>(null);
   const [contracts, setContracts] = useState<PublishingContract[]>([]);
   const [loading, setLoading] = useState(true);
+  const [denied, setDenied] = useState(false);
 
   const [isFree, setIsFree] = useState(false);
   const [price, setPrice] = useState('');
@@ -77,8 +78,18 @@ function Publish() {
   }, [bookId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    // Not started until auth resolves. A read issued while signed out is denied
+    // by rules, and an unhandled denial leaves the screen loading for ever.
+    if (authLoading) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    load().catch(() => {
+      setDenied(true);
+      setLoading(false);
+    });
+  }, [load, authLoading, user]);
 
   const sign = async () => {
     if (!signed || saving || !bookId) return;
@@ -105,8 +116,11 @@ function Publish() {
   };
 
   if (authLoading || loading) return <div className="p-8 text-gray-500">Loading…</div>;
+  if (!user) return <div className="p-8 text-gray-700">Sign in to open this title.</div>;
+  if (denied) {
+    return <div className="p-8 text-gray-700">This title belongs to another account.</div>;
+  }
   if (!book || !terms) return <div className="p-8 text-gray-700">That title could not be found.</div>;
-  if (!user) return <div className="p-8 text-gray-700">Sign in to publish.</div>;
 
   const active = contracts.find((c) => c.state !== 'ended');
 

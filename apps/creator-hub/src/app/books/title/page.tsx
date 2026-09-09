@@ -50,6 +50,7 @@ function Workspace() {
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<PublishingReport | null>(null);
   const [busy, setBusy] = useState<'manuscript' | 'cover' | null>(null);
+  const [denied, setDenied] = useState(false);
 
   // Local edits, so typing is never blocked on the network.
   const [draft, setDraft] = useState<{ description: string; genre: string }>({
@@ -63,17 +64,32 @@ function Workspace() {
   }, [setPageTitle, book?.title]);
 
   // Live: the press writes to this document while the author watches.
+  //
+  // Not started until auth has resolved. A listener opened while signed out is
+  // denied by rules, and an unhandled denial leaves the screen loading for ever
+  // rather than saying what is wrong.
   useEffect(() => {
-    if (!bookId) return;
-    const stop = TitleService.watch(bookId, (next) => {
-      setBook(next);
+    if (!bookId || authLoading) return;
+    if (!user) {
       setLoading(false);
-      if (next && !dirty.current) {
-        setDraft({ description: next.description ?? '', genre: next.genre ?? '' });
-      }
-    });
+      return;
+    }
+    const stop = TitleService.watch(
+      bookId,
+      (next) => {
+        setBook(next);
+        setLoading(false);
+        if (next && !dirty.current) {
+          setDraft({ description: next.description ?? '', genre: next.genre ?? '' });
+        }
+      },
+      () => {
+        setDenied(true);
+        setLoading(false);
+      },
+    );
     return stop;
-  }, [bookId]);
+  }, [bookId, authLoading, user]);
 
   // The report runs in the browser: the engine is pure, so there is no reason
   // to wait for a server round trip to tell an author what they can already
@@ -163,6 +179,23 @@ function Workspace() {
   };
 
   if (authLoading || loading) return <div className="p-8 text-gray-500">Loading…</div>;
+  if (!user) {
+    return (
+      <div className="p-8">
+        <p className="text-gray-700">Sign in to open this title.</p>
+      </div>
+    );
+  }
+  if (denied) {
+    return (
+      <div className="p-8">
+        <p className="text-gray-700">This title belongs to another account.</p>
+        <button onClick={() => router.push('/books/')} className="mt-3 text-indigo-600">
+          Back to your books
+        </button>
+      </div>
+    );
+  }
   if (!bookId || !book) {
     return (
       <div className="p-8">

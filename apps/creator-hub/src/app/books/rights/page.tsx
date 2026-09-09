@@ -80,6 +80,7 @@ function Rights() {
   const [book, setBook] = useState<EpubBook | null>(null);
   const [grants, setGrants] = useState<RightsGrant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [denied, setDenied] = useState(false);
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -106,8 +107,18 @@ function Rights() {
   }, [bookId]);
 
   useEffect(() => {
-    reload();
-  }, [reload]);
+    // Not started until auth resolves. A read issued while signed out is denied
+    // by rules, and an unhandled denial leaves the screen loading for ever.
+    if (authLoading) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    reload().catch(() => {
+      setDenied(true);
+      setLoading(false);
+    });
+  }, [reload, authLoading, user]);
 
   const claimEverything = async () => {
     if (!user || !book || saving) return;
@@ -164,6 +175,10 @@ function Rights() {
   };
 
   if (authLoading || loading) return <div className="p-8 text-gray-500">Loading…</div>;
+  if (!user) return <div className="p-8 text-gray-700">Sign in to open this title.</div>;
+  if (denied) {
+    return <div className="p-8 text-gray-700">This title belongs to another account.</div>;
+  }
   if (!book) return <div className="p-8 text-gray-700">That title could not be found.</div>;
 
   const live = grants.filter((g) => !g.archivedAt);
