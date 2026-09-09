@@ -1,26 +1,29 @@
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { COLLECTIONS, isPaid, type EpubBook, type Purchase } from '@wolly/schema';
+import { COLLECTIONS, type Transaction } from '@wolly/schema';
 import { Payment } from '@/types/book';
 
 /**
- * Real payout history, derived from the `purchases` collection.
+ * Real payout history, derived from the `transactions` ledger.
  *
- * There is no separate settlement/ledger system yet, so a "payout" here is a
- * per-calendar-month aggregate of the creator's sales: gross revenue, the
- * creator's royalty (per the book's royaltyOption), and the platform's share.
- * The in-progress (current) month is reported as `pending`; earlier months as
- * `completed`.
+ * READ FROM THE LEDGER, NEVER RECOMPUTED. Each transaction row carries
+ * `authorEarningsMinor` frozen at the moment of the sale, so this function adds
+ * up money that was actually agreed rather than re-deriving it.
+ *
+ * It used to multiply completed purchases by the book's CURRENT share, which
+ * was already wrong (an author editing a setting rewrote earnings they had been
+ * shown) and became far worse when the revenue share moved into staff-editable
+ * platform settings: one change in the backoffice would have retroactively
+ * rewritten what every author on the platform was owed. The ledger exists
+ * precisely so that cannot happen; this simply reads it.
+ *
+ * A "payout" here is still a per-calendar-month aggregate, because there is no
+ * settlement system yet. Everything is `pending` until a real record exists in
+ * `payouts`.
  */
 export class PayoutService {
   static async getPayoutHistory(userId: string, currency = 'GHS'): Promise<Payment[]> {
-    const books = await PayoutService.getCreatorBooks(userId);
-    if (books.length === 0) return [];
-
-    const royaltyByBook = new Map<string, number>();
-    for (const b of books) royaltyByBook.set(b.id, royaltyRateOf(b));
-
-    const sales = await PayoutService.getSales(books.map((b) => b.id));
+    const sales = await PayoutService.getSales(userId);
     if (sales.length === 0) return [];
 
     // Group by calendar month (key: YYYY-MM).
@@ -29,7 +32,7 @@ export class PayoutService {
       periodEnd: Date;
       totalSales: number;
       totalRevenue: number;
-      totalRoyalty: number;
+      totalEarnings: number;
       saleCurrency: string;
     }
     const buckets = new Map<string, Bucket>();
@@ -43,19 +46,23 @@ export class PayoutService {
           periodEnd: new Date(d.getFullYear(), d.getMonth() + 1, 0),
           totalSales: 0,
           totalRevenue: 0,
-          totalRoyalty: 0,
+          totalEarnings: 0,
           saleCurrency: sale.currency,
         };
       bucket.totalSales += 1;
       bucket.totalRevenue += sale.amount;
-      bucket.totalRoyalty += sale.amount * (royaltyByBook.get(sale.bookId) ?? 0.7);
+      // Summed from the row, not multiplied by a rate read now.
+      bucket.totalEarnings += sale.authorEarnings;
       buckets.set(key, bucket);
     }
 
     const payments: Payment[] = Array.from(buckets.values()).map((b) => {
-      const netAmount = round2(b.totalRoyalty);
-      const platformFee = round2(b.totalRevenue - b.totalRoyalty);
-      const royaltyRate = b.totalRevenue > 0 ? b.totalRoyalty / b.totalRevenue : 0.7;
+      const netAmount = round2(b.totalEarnings);
+      const platformFee = round2(b.totalRevenue - b.totalEarnings);
+      // The EFFECTIVE share actually paid across the month, derived from the
+      // money rather than asserted. If sales in one month were agreed on
+      // different terms, this reports the blend, which is the truth.
+      const royaltyRate = b.totalRevenue > 0 ? b.totalEarnings / b.totalRevenue : 0;
       return {
         id: `payout-${b.periodStart.getTime()}`,
         userId,
@@ -97,36 +104,34 @@ export class PayoutService {
     return payments.sort((a, b) => b.periodStart.getTime() - a.periodStart.getTime());
   }
 
-  private static async getCreatorBooks(userId: string): Promise<EpubBook[]> {
-    const snap = await getDocs(
-      query(collection(db, COLLECTIONS.EPUBS), where('ownerUserId', '==', userId)),
-    );
-    return snap.docs.map((d) => ({ ...(d.data() as EpubBook), id: d.id }));
-  }
-
+  /**
+   * Completed sales for this creator, straight off the ledger.
+   *
+   * One query on `authorUserId`, rather than fetching the creator's books and
+   * chunking their ids ten at a time into an `in` filter. The ledger row
+   * denormalises the author, so a book changing hands leaves past sales with
+   * whoever earned them.
+   *
+   * Only completed sales are ever written to `transactions`, so there is no
+   * status filter to forget here, which is the defect that inflated earnings
+   * when this read `purchases`.
+   */
   private static async getSales(
-    bookIds: string[],
-  ): Promise<{ bookId: string; amount: number; date: Date; currency: string }[]> {
-    const out: { bookId: string; amount: number; date: Date; currency: string }[] = [];
-    for (let i = 0; i < bookIds.length; i += 10) {
-      const ids = bookIds.slice(i, i + 10);
-      const snap = await getDocs(
-        query(collection(db, COLLECTIONS.PURCHASES), where('bookId', 'in', ids)),
-      );
-      snap.forEach((docSnap) => {
-        const p = docSnap.data() as Purchase;
-        // Royalties are owed on completed sales only. Without this an abandoned
-        // checkout raised the author's payable balance.
-        if (!isPaid(p)) return;
-        out.push({
-          bookId: p.bookId,
-          amount: (p.amountInPesewas ?? 0) / 100,
-          date: toDate(p.purchasedAt),
-          currency: p.currency || 'GHS',
-        });
-      });
-    }
-    return out;
+    userId: string,
+  ): Promise<{ bookId: string; amount: number; authorEarnings: number; date: Date; currency: string }[]> {
+    const snap = await getDocs(
+      query(collection(db, COLLECTIONS.TRANSACTIONS), where('authorUserId', '==', userId)),
+    );
+    return snap.docs.map((docSnap) => {
+      const t = docSnap.data() as Transaction;
+      return {
+        bookId: t.bookId,
+        amount: (t.grossMinor ?? 0) / 100,
+        authorEarnings: (t.authorEarningsMinor ?? 0) / 100,
+        date: toDate(t.occurredAt),
+        currency: t.currency || 'GHS',
+      };
+    });
   }
 }
 
@@ -144,12 +149,6 @@ export function calculatePayoutStats(payments: Payment[]) {
     lifetimePayouts: completed.length,
     totalPending: pending.length,
   };
-}
-
-function royaltyRateOf(book: EpubBook): number {
-  if (book.royaltyOption === '35%') return 0.35;
-  if (book.royaltyOption === '70%') return 0.7;
-  return 0.7;
 }
 
 function round2(n: number): number {

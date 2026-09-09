@@ -70,36 +70,95 @@ async function callPaystack(path, options = {}) {
 }
 
 /**
- * The money split. DUPLICATED FROM `@wolly/schema` (`splitSale`, `royaltyRateFor`).
+ * The money split. DUPLICATED FROM `@wolly/schema` (`splitSale`,
+ * `readRevenueTerms`, `termsFromPurchase`, `DEFAULT_REVENUE_TERMS`).
  *
  * Not imported, deliberately. This codebase is deployed by Firebase, which runs
  * `npm install` inside services/payments at deploy time; an unpublished
  * workspace dependency cannot resolve there. That is the same failure mode that
  * broke the blog's webframeworks deploy. `services/api/test/contract.test.js`
- * asserts this stays identical to the canonical version.
+ * asserts these stay identical to the canonical versions BY BEHAVIOUR, running
+ * both over a grid of sales rather than comparing text.
  *
- * All amounts are pesewas. The author's share is of GROSS, because that is the
- * number the pricing screen showed them; Wolly absorbs the processor's fee out
- * of its own share. Rounding is applied once, to the author, and the platform
- * takes the remainder, so the parts always sum back to gross exactly.
+ * All amounts are pesewas. Rounding is applied once, to the author, and the
+ * platform takes the remainder, so the parts always sum back to net exactly.
  */
-function royaltyRateFor(royaltyOption) {
-  return royaltyOption === '35%' ? 0.35 : 0.7;
+const DEFAULT_REVENUE_TERMS = { authorShare: 0.7, basis: 'gross' };
+const MAX_AUTHOR_SHARE = 0.95;
+
+/**
+ * Validates terms read out of the staff-editable settings document.
+ *
+ * A safety boundary, not a habit: `authorShare: 70` typed instead of `0.7`
+ * would pay an author seventy times the sale price, and it looks right in the
+ * console.
+ */
+function readRevenueTerms(raw) {
+  const source = raw || {};
+  const share = Number(source.authorShare);
+  const basis = source.basis === 'net' ? 'net' : 'gross';
+  if (!Number.isFinite(share) || share <= 0 || share > MAX_AUTHOR_SHARE) {
+    return { ...DEFAULT_REVENUE_TERMS };
+  }
+  return { authorShare: share, basis };
 }
 
-function splitSale({ grossMinor, providerFeeMinor, royaltyRate }) {
+/**
+ * The terms frozen on a purchase.
+ *
+ * A checkout begun before the terms became configurable carries the old
+ * `royaltyRate` and no basis; those were all shares of gross. Without this, a
+ * purchase started before a deploy and verified after it would fall back to the
+ * platform default and pay the wrong amount.
+ */
+function termsFromPurchase(purchase) {
+  const share = Number(
+    purchase.authorShare !== undefined && purchase.authorShare !== null
+      ? purchase.authorShare
+      : purchase.royaltyRate
+  );
+  if (!Number.isFinite(share) || share <= 0 || share > 1) {
+    return { ...DEFAULT_REVENUE_TERMS };
+  }
+  return { authorShare: share, basis: purchase.revenueBasis === 'net' ? 'net' : 'gross' };
+}
+
+function splitSale({ grossMinor, providerFeeMinor, terms }) {
   const gross = Math.round(grossMinor);
   const providerFee = Math.max(0, Math.round(providerFeeMinor));
   const net = gross - providerFee;
-  const authorEarnings = Math.round(gross * royaltyRate);
+  const { authorShare, basis } = terms;
+  const shareOf = basis === 'net' ? net : gross;
+  const authorEarnings = Math.max(0, Math.round(shareOf * authorShare));
   return {
     grossMinor: gross,
     providerFeeMinor: providerFee,
     netMinor: net,
-    royaltyRate,
+    authorShare,
+    revenueBasis: basis,
     authorEarningsMinor: authorEarnings,
     platformNetMinor: net - authorEarnings,
   };
+}
+
+/**
+ * The terms in force RIGHT NOW, for a checkout that is starting.
+ *
+ * Read once, at the moment the reader commits to a price, and frozen onto the
+ * purchase. Never read again when the sale is verified or paid out: staff can
+ * change what Wolly offers tomorrow, and it must not rewrite a sale agreed
+ * today. A book may carry its own override, which staff set in the backoffice.
+ */
+async function currentTermsFor(book) {
+  if (book && book.revenueTerms) return readRevenueTerms(book.revenueTerms);
+  try {
+    const snap = await db.collection('platform_settings').doc('revenue').get();
+    return readRevenueTerms(snap.exists ? snap.data() : null);
+  } catch (error) {
+    // A settings read must never take checkout down.
+    console.error('revenue settings unreadable, using platform default', error);
+    return { ...DEFAULT_REVENUE_TERMS };
+  }
 }
 
 async function getPurchaseDoc(uid, bookId) {
@@ -160,6 +219,10 @@ exports.initializePaystackCheckout = functions
       }
 
       const amountInPesewas = Math.round(price * 100);
+      // Read ONCE, here, at the moment the reader commits to a price, and
+      // frozen onto the purchase below. Never read again at verification or
+      // payout.
+      const checkoutTerms = await currentTermsFor(book);
       const reference = `WOLLY_${bookId}_${Date.now()}`;
       const callbackUrl = `${PAYMENT_CALLBACK_URL}?bookId=${encodeURIComponent(
         bookId
@@ -192,9 +255,10 @@ exports.initializePaystackCheckout = functions
           currency: 'GHS',
           status: 'pending',
           // Frozen here, not read at report time. The reader is committing to a
-          // price now, so the terms in force now are the ones that apply. An
-          // author changing royaltyOption later must not rewrite this sale.
-          royaltyRate: royaltyRateFor(book.royaltyOption),
+          // price now, so the terms in force now are the ones that apply. Staff
+          // changing the platform terms later must not rewrite this sale.
+          authorShare: checkoutTerms.authorShare,
+          revenueBasis: checkoutTerms.basis,
           launchedAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
@@ -298,10 +362,9 @@ exports.verifyPaystackPayment = functions
         // Paystack reports its own cut in minor units. Previously discarded,
         // which made Wolly's true margin unknowable.
         providerFeeMinor: Number(verification.fees || 0),
-        royaltyRate:
-          typeof purchase.royaltyRate === 'number'
-            ? purchase.royaltyRate
-            : royaltyRateFor(undefined),
+        // From the purchase, never from the settings document. This sale was
+        // agreed at these terms.
+        terms: termsFromPurchase(purchase),
       });
 
       const batch = db.batch();

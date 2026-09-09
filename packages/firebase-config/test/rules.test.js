@@ -255,6 +255,66 @@ const cases = [
     },
   },
 
+  // The payout screen LISTS an author's own sales. Rules are not filters: an
+  // equality filter on the field the rule checks is what makes the query
+  // provable, and the reader Library was once silently empty for exactly this
+  // reason (an unfiltered epubs query, denied by rules, swallowed as an error).
+  {
+    __name: 'author lists their own sales, filtered by authorUserId',
+    expectation: 'ALLOW',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'list',
+      path: '/databases/(default)/documents/transactions/t1',
+      time: '2026-09-02T00:00:00Z',
+      query: { limit: 100 },
+    },
+    resource: {
+      data: { buyerUserId: 'a-reader', authorUserId: OWNER, grossMinor: 1500 },
+    },
+  },
+  {
+    __name: 'a stranger lists sales they do not own',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: 'nosy', token: { sub: 'nosy' } },
+      method: 'list',
+      path: '/databases/(default)/documents/transactions/t1',
+      time: '2026-09-02T00:00:00Z',
+      query: { limit: 100 },
+    },
+    resource: {
+      data: { buyerUserId: 'a-reader', authorUserId: OWNER, grossMinor: 1500 },
+    },
+  },
+
+  // Platform settings: the revenue share staff edit. Readable by an author,
+  // because terms nobody can read are not terms; writable by staff only,
+  // because this decides what the next author to publish is offered.
+  {
+    __name: 'an author reads the revenue terms',
+    expectation: 'ALLOW',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'get',
+      path: '/databases/(default)/documents/platform_settings/revenue',
+      time: '2026-09-02T00:00:00Z',
+    },
+    resource: { data: { authorShare: 0.7, basis: 'gross' } },
+  },
+  {
+    __name: 'an author sets their own revenue share to 100%',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'update',
+      path: '/databases/(default)/documents/platform_settings/revenue',
+      time: '2026-09-02T00:00:00Z',
+      resource: { data: { authorShare: 1, basis: 'gross' } },
+    },
+    resource: { data: { authorShare: 0.7, basis: 'gross' } },
+  },
+
   // Payouts: money owed. An author could previously invent one for themselves.
   {
     __name: 'author invents a payout for themselves',

@@ -50,6 +50,26 @@ export interface Purchase {
   /** Paystack channel, e.g. card, mobile_money, bank. */
   channel?: string;
 
+  /**
+   * The revenue terms FROZEN when checkout began, written by the payments
+   * function and never by a client.
+   *
+   * The reader commits to a price at that moment, so the terms in force at that
+   * moment are the ones that apply. Staff changing what Wolly offers must not
+   * rewrite a sale already under way. See revenue.ts.
+   */
+  authorShare?: number;
+  revenueBasis?: 'gross' | 'net';
+  /**
+   * @deprecated Superseded by `authorShare` + `revenueBasis`.
+   *
+   * Carried by purchases begun before the terms became configurable. Those were
+   * all shares of gross, and `termsFromPurchase()` reads them as such, so a
+   * checkout started before the change and verified after it still pays what it
+   * promised.
+   */
+  royaltyRate?: number;
+
   /** Set when Paystack confirms the payment. */
   purchasedAt?: FirestoreTimestamp;
   updatedAt?: FirestoreTimestamp;

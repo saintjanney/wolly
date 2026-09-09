@@ -144,6 +144,46 @@ next to the check that owns each.
 | `coverMetrics` | `{ width, height, bytes, contentType, fetchedOk }`. `fetchedOk: false` used to be a silent `console.warn` |
 | `previewChapters` | Chapters offered as a free sample |
 
+### Revenue share
+
+The split between an author and Wolly is **configurable by staff** in the
+backoffice, and **frozen at every point it matters**. Those two properties are in
+tension, and the tension is the design.
+
+| Where | Document | Meaning |
+|---|---|---|
+| Platform | `platform_settings/revenue` | What Wolly currently offers. Staff-editable, signed-in-readable |
+| Purchase | `purchases/{uid}_{bookId}.authorShare`, `.revenueBasis` | What THIS sale was agreed at, frozen when checkout began |
+| Ledger | `transactions/{ref}.authorShare`, `.revenueBasis`, `.authorEarningsMinor` | What THIS sale actually paid, frozen at completion |
+
+Reading the platform document when computing earnings is the bug this shape
+exists to prevent. Staff changing the terms tomorrow must not rewrite money an
+author has already earned, or a contract they have already signed.
+
+`basis` decides who carries the payment processor's fee and nothing else:
+
+- `gross` (default) - the author's share is a clean percentage of the sticker
+  price and Wolly absorbs the fee. The same book at the same price earns the
+  author the same amount whether the reader paid by mobile money or by card,
+  which is the only version an author can check against a receipt.
+- `net` - the fee comes off first and both sides carry it. Wolly's margin is
+  protected, at the cost of identical sales paying differently by channel.
+
+`readRevenueTerms()` is a **safety boundary**, not defensive habit: the settings
+document is hand-edited, and `authorShare: 70` typed instead of `0.7` would pay
+an author seventy times the sale price. Anything invalid falls back to the
+platform default rather than throwing, because a config typo must not take
+checkout down. `revenueTermsProblem()` is the stricter check used on save, and it
+returns the reason so the backoffice can say what is wrong.
+
+`splitSale()` is duplicated in `services/payments` (Firebase runs `npm install`
+against the public registry at deploy time, so a workspace dependency cannot
+resolve there). `services/api/test/contract.test.js` pins the two together **by
+behaviour**, running both over a grid of sales, bases, shares and malformed
+settings. A comment saying "keep these in sync" is not a mechanism.
+
+`epubs.royaltyOption` (`'35%' | '70%'`) is **deprecated**. Nothing reads it.
+
 ### Rights
 
 | Field | Type | Written by | Notes |

@@ -149,6 +149,25 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    /**
+     * Platform-wide settings staff edit in the backoffice.
+     *
+     * `revenue` holds the revenue share Wolly currently offers an author:
+     * `{ authorShare, basis }`. READABLE by any signed-in user, because the
+     * publish flow has to show an author the terms before they agree to them,
+     * and terms nobody can read are not terms.
+     *
+     * WRITABLE BY STAFF ONLY, and the reason is money: this document decides
+     * what the next author to publish is offered. It is never read when a sale
+     * is verified or paid out, because every purchase and every publishing
+     * contract freezes the terms that applied to it, so changing this cannot
+     * rewrite what someone has already earned or already signed.
+     */
+    match /platform_settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
     match /genres/{genreId} {
       allow read: if isAuthenticated();
       // Written by the backoffice genre manager, and by seed scripts via the

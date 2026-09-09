@@ -119,59 +119,148 @@ test('derivePubliclyReadable is identical in the schema and the publish callable
 test('the money split in services/payments matches @wolly/schema exactly', () => {
   const ts = require('typescript');
 
-  // Canonical: transpile the TypeScript and pull splitSale out of it.
-  const canonicalSource = readSource('packages/schema/src/transaction.ts');
-  const compiled = ts.transpileModule(canonicalSource, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText;
-  const canonicalModule = { exports: {} };
-  new Function('exports', 'module', 'require', compiled)(
-    canonicalModule.exports,
-    canonicalModule,
-    require,
-  );
-  const canonical = canonicalModule.exports;
+  // Canonical: transpile the TypeScript and pull the helpers out of it.
+  // transaction.ts imports ./revenue, so the loader has to resolve that too.
+  const load = (relPath) => {
+    const compiled = ts.transpileModule(readSource(relPath), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    }).outputText;
+    const mod = { exports: {} };
+    new Function('exports', 'module', 'require', compiled)(
+      mod.exports,
+      mod,
+      (id) => (id === './revenue' ? load('packages/schema/src/revenue.ts') : require(id)),
+    );
+    return mod.exports;
+  };
+  const canonical = { ...load('packages/schema/src/transaction.ts'), ...load('packages/schema/src/revenue.ts') };
 
-  // The deployed copy: evaluate the two functions out of the payments source.
+  // The deployed copy: evaluate the helpers out of the payments source. The
+  // slice stops before currentTermsFor, which touches Firestore.
   const paymentsSource = readSource('services/payments/src/index.js');
-  const start = paymentsSource.indexOf('function royaltyRateFor');
-  const end = paymentsSource.indexOf('async function getPurchaseDoc');
+  const start = paymentsSource.indexOf('const DEFAULT_REVENUE_TERMS');
+  const end = paymentsSource.indexOf('/**\n * The terms in force RIGHT NOW');
   assert.ok(start > 0 && end > start, 'could not locate the split helpers in services/payments');
-  const copySource = paymentsSource.slice(start, end);
   const copy = new Function(
-    `${copySource}; return { splitSale, royaltyRateFor };`,
+    `${paymentsSource.slice(start, end)}; return { splitSale, readRevenueTerms, termsFromPurchase, DEFAULT_REVENUE_TERMS };`,
   )();
 
-  // Royalty options, including the unset case.
-  for (const option of ['35%', '70%', undefined, 'nonsense']) {
-    assert.equal(
-      copy.royaltyRateFor(option),
-      canonical.royaltyRateFor(option),
-      `royaltyRateFor disagrees for ${String(option)}`,
+  assert.deepEqual(
+    copy.DEFAULT_REVENUE_TERMS,
+    canonical.DEFAULT_REVENUE_TERMS,
+    'the fallback terms have drifted, so a missing settings document would pay differently in each copy',
+  );
+
+  // The settings document is hand-edited by staff, so the validator is a safety
+  // boundary and both copies must refuse the same nonsense. `authorShare: 70`
+  // typed instead of 0.7 is the mistake that matters: it would pay an author
+  // seventy times the sale price.
+  const rawTerms = [
+    { authorShare: 0.7, basis: 'gross' },
+    { authorShare: 0.6, basis: 'net' },
+    { authorShare: 70, basis: 'gross' },
+    { authorShare: 0, basis: 'gross' },
+    { authorShare: -0.5, basis: 'gross' },
+    { authorShare: 0.99, basis: 'gross' },
+    { authorShare: 'nonsense', basis: 'gross' },
+    { authorShare: 0.7, basis: 'sideways' },
+    { basis: 'net' },
+    {},
+    null,
+  ];
+  for (const raw of rawTerms) {
+    assert.deepEqual(
+      copy.readRevenueTerms(raw),
+      canonical.readRevenueTerms(raw),
+      `readRevenueTerms disagrees for ${JSON.stringify(raw)}`,
     );
   }
 
-  // A grid of real sale shapes: typical, cheap, expensive, free-ish, and the
-  // rounding-sensitive odd amounts.
+  // A purchase begun before the terms became configurable carries the old
+  // `royaltyRate` and no basis. Both copies must read it the same way, or a
+  // checkout started before a deploy and verified after it pays the wrong
+  // amount.
+  const purchases = [
+    { authorShare: 0.6, revenueBasis: 'net' },
+    { authorShare: 0.7, revenueBasis: 'gross' },
+    { royaltyRate: 0.35 },
+    { royaltyRate: 0.7 },
+    { royaltyRate: null },
+    { authorShare: null, royaltyRate: 0.35 },
+    {},
+  ];
+  for (const purchase of purchases) {
+    assert.deepEqual(
+      copy.termsFromPurchase(purchase),
+      canonical.termsFromPurchase(purchase),
+      `termsFromPurchase disagrees for ${JSON.stringify(purchase)}`,
+    );
+  }
+
+  // A grid of real sale shapes: typical, cheap, expensive, and the
+  // rounding-sensitive odd amounts, across both bases.
   const grosses = [200, 999, 1500, 3000, 12345, 1];
   const fees = [0, 34, 49, 59, 200];
-  const rates = [0.35, 0.7];
+  const termsGrid = [
+    { authorShare: 0.7, basis: 'gross' },
+    { authorShare: 0.7, basis: 'net' },
+    { authorShare: 0.35, basis: 'gross' },
+    { authorShare: 0.5, basis: 'net' },
+    { authorShare: 0.95, basis: 'gross' },
+  ];
   for (const grossMinor of grosses) {
     for (const providerFeeMinor of fees) {
-      for (const royaltyRate of rates) {
-        const input = { grossMinor, providerFeeMinor, royaltyRate };
+      for (const terms of termsGrid) {
+        const input = { grossMinor, providerFeeMinor, terms };
         const a = canonical.splitSale(input);
         const b = copy.splitSale(input);
         assert.deepEqual(b, a, `split disagrees for ${JSON.stringify(input)}`);
 
-        // And the invariant that matters regardless of which is right:
-        // the parts must reconstruct the gross exactly, with no lost pesewa.
+        // The invariant that matters regardless of which is right: the parts
+        // must reconstruct the gross exactly, with no lost pesewa.
         assert.equal(
           a.authorEarningsMinor + a.platformNetMinor + a.providerFeeMinor,
           a.grossMinor,
           `parts do not sum back to gross for ${JSON.stringify(input)}`,
         );
+        // And nobody is ever paid a negative amount.
+        assert.ok(a.authorEarningsMinor >= 0, 'author earnings went negative');
       }
     }
   }
+});
+
+test('the basis decides who carries the payment processor fee, and nothing else', () => {
+  const ts = require('typescript');
+  const load = (relPath) => {
+    const compiled = ts.transpileModule(readSource(relPath), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    }).outputText;
+    const mod = { exports: {} };
+    new Function('exports', 'module', 'require', compiled)(
+      mod.exports, mod,
+      (id) => (id === './revenue' ? load('packages/schema/src/revenue.ts') : require(id)),
+    );
+    return mod.exports;
+  };
+  const { splitSale } = load('packages/schema/src/transaction.ts');
+
+  const sale = { grossMinor: 5000, providerFeeMinor: 100 };
+  const gross = splitSale({ ...sale, terms: { authorShare: 0.7, basis: 'gross' } });
+  const net = splitSale({ ...sale, terms: { authorShare: 0.7, basis: 'net' } });
+
+  assert.equal(gross.authorEarningsMinor, 3500, 'on gross the author gets a clean share of the price');
+  assert.equal(gross.platformNetMinor, 1400, 'and Wolly absorbs the whole fee');
+  assert.equal(net.authorEarningsMinor, 3430, 'on net the fee comes off before the share');
+  assert.equal(net.platformNetMinor, 1470);
+
+  // The author earns MORE on the gross basis, which is the point of it being
+  // the default: the fee is Wolly's cost of doing business, not the author's.
+  assert.ok(gross.authorEarningsMinor > net.authorEarningsMinor);
+
+  // On the gross basis, an identical sale pays the author identically whatever
+  // the processor charged. That is the property an author can check against a
+  // receipt, and the reason the default is gross.
+  const cheapFee = splitSale({ grossMinor: 5000, providerFeeMinor: 20, terms: { authorShare: 0.7, basis: 'gross' } });
+  assert.equal(cheapFee.authorEarningsMinor, gross.authorEarningsMinor);
 });
