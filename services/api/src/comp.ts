@@ -20,7 +20,7 @@ const SUBSCRIPTIONS = 'subscriptions';
  * so it exercises the real paywall rather than bypassing it.
  */
 export const grantComplimentarySubscription = onCall(
-  { region: REGION, cors: true, maxInstances: 3 },
+  { region: REGION, cors: true, maxInstances: 1 },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in first.');

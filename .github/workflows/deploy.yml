@@ -198,6 +198,16 @@ jobs:
       - name: Deploy blog to Cloud Run
         working-directory: apps/blog
         run: |
+          # --max-instances is not a performance setting here, it is a quota
+          # one. The europe-west2 Cloud Run CPU allocation quota for this
+          # project is 20 vCPU, and this service was claiming 20 of it on its
+          # own (max 20 instances at 1 CPU), leaving nothing for the twelve
+          # functions that share the region. Deploys failed outright as a
+          # result, including updates to functions that had not changed.
+          #
+          # Two is far above anything this surface serves: the blog has no
+          # subscribers and a handful of posts. Raise it when there is traffic
+          # to justify it, and ideally after the region's quota is raised.
           gcloud run deploy wolly-blog \
             --source . \
             --region europe-west2 \
@@ -205,6 +215,7 @@ jobs:
             --allow-unauthenticated \
             --port 8080 \
             --memory 512Mi \
+            --max-instances 2 \
             --project "$FIREBASE_PROJECT" \
             --quiet
 

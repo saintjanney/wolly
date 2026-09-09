@@ -28,7 +28,7 @@ const EPUBS = 'epubs';
  * check, which is a way around the gate rather than a feature. The reader-facing
  * sample is a different thing and is `previewChapters`.
  */
-export const getBookPreviewBytes = onCall({ region: REGION, maxInstances: 5 }, async (request) => {
+export const getBookPreviewBytes = onCall({ region: REGION, maxInstances: 1 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError('unauthenticated', 'Sign in to see your preview.');

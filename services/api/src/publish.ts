@@ -57,7 +57,7 @@ interface PublishRequest {
  * hand-rolling token verification and preflight is where those go subtly wrong.
  */
 export const publishPost = onCall(
-  { region: REGION, cors: true, enforceAppCheck: false, maxInstances: 5 },
+  { region: REGION, cors: true, enforceAppCheck: false, maxInstances: 1 },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {

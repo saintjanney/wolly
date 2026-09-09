@@ -41,7 +41,7 @@ export const onConversionRequested = onDocumentWritten(
     // 1, so every permitted instance reserves a whole CPU. Three concurrent
     // pressings is ample for this catalogue and leaves room for everything
     // else to deploy.
-    maxInstances: 3,
+    maxInstances: 2,
   },
   async (event) => {
     const after = event.data?.after;

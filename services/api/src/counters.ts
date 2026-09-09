@@ -26,7 +26,7 @@ function delta(before: boolean, after: boolean): number {
 
 /** `posts/{postId}/likes/{userId}` -> `posts/{postId}.likeCount` */
 export const onLikeWritten = onDocumentWritten(
-  { document: 'posts/{postId}/likes/{userId}', region: REGION, maxInstances: 3 },
+  { document: 'posts/{postId}/likes/{userId}', region: REGION, maxInstances: 1 },
   async (event) => {
     const change = delta(
       event.data?.before.exists ?? false,
@@ -53,7 +53,7 @@ export const onLikeWritten = onDocumentWritten(
  * is displayed under it.
  */
 export const onCommentWritten = onDocumentWritten(
-  { document: 'posts/{postId}/comments/{commentId}', region: REGION, maxInstances: 3 },
+  { document: 'posts/{postId}/comments/{commentId}', region: REGION, maxInstances: 1 },
   async (event) => {
     const visible = (snap: { exists: boolean; data?: () => Record<string, unknown> | undefined }) =>
       snap.exists && snap.data?.()?.status === 'visible';
@@ -81,7 +81,7 @@ export const onCommentWritten = onDocumentWritten(
  * difference between them is the conversion story.
  */
 export const onSubscriptionWritten = onDocumentWritten(
-  { document: 'subscriptions/{subId}', region: REGION, maxInstances: 3 },
+  { document: 'subscriptions/{subId}', region: REGION, maxInstances: 1 },
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
@@ -126,7 +126,7 @@ export const onSubscriptionWritten = onDocumentWritten(
 
 /** `posts/{postId}` -> `publications/{pubId}.postCount` (published posts only). */
 export const onPostWritten = onDocumentWritten(
-  { document: 'posts/{postId}', region: REGION, maxInstances: 3 },
+  { document: 'posts/{postId}', region: REGION, maxInstances: 1 },
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
