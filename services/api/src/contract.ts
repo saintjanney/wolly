@@ -4,6 +4,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 const REGION = 'europe-west2';
 const EPUBS = 'epubs';
 const CONTRACTS = 'contracts';
+const RIGHTS = 'rights';
 const USERS = 'users';
 const SETTINGS = 'platform_settings';
 
@@ -45,6 +46,7 @@ export const AUTHOR_BLOCKING_CHECKS = [
   'title_author',
   'payout_destination',
   'price_set',
+  'rights_declared',
 ] as const;
 
 /**
@@ -144,6 +146,15 @@ export const signPublishingContract = onCall({ region: REGION }, async (request)
     } else if (MIN_PRICE_MINOR !== null && priceMinor < MIN_PRICE_MINOR) {
       fail('price_set', `The lowest price Wolly can process is ${(MIN_PRICE_MINOR / 100).toFixed(2)}.`);
     }
+  }
+
+  // Somebody has to have said they hold the rights. One tap in the rights flow
+  // satisfies this; an archived grant does not, because putting a claim away is
+  // how an author says it no longer applies.
+  const grants = await bookRef.collection(RIGHTS).get();
+  const liveGrants = grants.docs.filter((d) => !d.data().archivedAt);
+  if (liveGrants.length === 0) {
+    fail('rights_declared', 'Tell us which rights you hold before Wolly sells this.');
   }
 
   // Payouts only matter when there is money to send.

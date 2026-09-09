@@ -600,13 +600,34 @@ test('no blocking check is impossible to satisfy', () => {
   }
 });
 
+test('recording who holds the rights is what clears the rights check', () => {
+  // The rights flow is the writer this check was waiting for, and a one-tap
+  // "I hold everything myself" is a single grant, so the six points are
+  // winnable and the blocking check is clearable.
+  const withoutRights = completeInput();
+  withoutRights.rights = [];
+  withoutRights.review = { editionReviewedAt: NOW, listingApprovedAt: NOW, editionFindings: [] };
+
+  const blocked = E.computeReport(withoutRights, { now: NOW });
+  assert.ok(
+    E.blockingFailures(blocked).some((b) => b.id === 'rights_declared'),
+    'a book nobody has claimed the rights to must not go on sale',
+  );
+
+  const cleared = E.computeReport(
+    { ...withoutRights, rights: [{ verificationState: 'unverified' }] },
+    { now: NOW },
+  );
+  assert.deepEqual(E.blockingFailures(cleared).map((b) => b.id), []);
+  assert.ok(cleared.score > blocked.score, 'and recording it is worth points');
+});
+
 test('a finished book can always reach the top band', () => {
   // Whatever the applicable set is, an author who has done everything and a
   // Wolly that has reviewed it must be able to publish. If this fails, some
   // check has become unsatisfiable and the product has no working publish path.
   const input = completeInput();
   input.review = { editionReviewedAt: NOW, listingApprovedAt: NOW, editionFindings: [] };
-  input.rights = [];
   input.book.previewChapters = null;
   const report = E.computeReport(input, { now: NOW });
   assert.equal(report.score, 100, 'the top of the scale must be reachable in the real world');

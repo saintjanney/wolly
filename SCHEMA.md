@@ -128,14 +128,18 @@ costs a second read of the manuscript, and the report scores against them.
 | `cover_fetch_failed` | `cover_present` | The press could not download the cover |
 | `engine_note` | nobody | The press talking to itself about Word style names. Never shown to an author |
 
-**Checks with no writer yet.** `rights_declared` and `preview_defined` are in
-`AWAITING_WOLLY_TO_BUILD` and score `not_applicable`, because nothing on the
-platform writes a `RightsGrant` or a `previewChapters`. Scoring them charged
-authors for features Wolly has not built, and `rights_declared` is
-`blocking: true`, so the publish pre-flight refused **every book on the
-platform**: a finished, priced, pressed, staff-approved book scored 93 and could
-not be published. Remove an id from that set in the same commit that ships its
-writer; the weight returns on its own.
+**Checks with no writer yet.** `preview_defined` is in `AWAITING_WOLLY_TO_BUILD`
+and scores `not_applicable`, because nothing writes `previewChapters` (the press
+already offers the first chapter by default, so no reader is worse off).
+
+Scoring a check the author cannot satisfy charges them for a feature Wolly has
+not built. `rights_declared` was in that set and is `blocking: true`, so the
+publish pre-flight once refused **every book on the platform**: a finished,
+priced, pressed, staff-approved book scored 93 and could not be published. It
+left the set when `/books/rights/` shipped, and a one-tap "I hold everything
+myself" clears it. Remove an id from that set in the same commit that ships its
+writer, and enforce it in `signPublishingContract` at the same time, or the
+anti-drift contract test fails.
 
 `AUTHOR_ACTIONABLE` in the report engine is the first two only. A code scored by
 a dedicated check must not also be counted by `clean_conversion`, or one dropped

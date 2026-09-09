@@ -221,14 +221,15 @@ export const LISTING_SCOPE_CHECKS = new Set<CheckId>([
 ]);
 
 export const AWAITING_WOLLY_TO_BUILD = new Set<CheckId>([
-  // Needs a rights form in the creator-hub writing `epubs/{bookId}/rights/{id}`.
-  // The model and the security rules exist (see rights.ts); the form does not,
-  // and `proposedDefaultGrant` has exactly one caller, which is a unit test.
-  'rights_declared',
   // Needs a preview-chapter picker writing `epubs/{bookId}.previewChapters`.
   // The press already offers the first chapter by default, so no reader is
   // worse off in the meantime and no book is incomplete without it.
   'preview_defined',
+  // `rights_declared` LEFT THIS SET when the rights flow shipped. Its writer is
+  // `/books/rights/`, and a one-tap "I hold everything myself" satisfies it, so
+  // the six points are winnable and the blocking check is clearable. The
+  // server-side publish gate enforces it too; a contract test keeps the two
+  // lists identical.
 ]);
 
 // ── Inputs ─────────────────────────────────────────────────────────────────
