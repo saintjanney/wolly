@@ -83,6 +83,12 @@ service cloud.firestore {
         'conversionError',
         'epubUrl',
         'pdfUrl',
+        // The press preview and the measured page count. `previewPath` is a
+        // Storage object path the preview callable dereferences, so an author
+        // who could write it would aim that callable at any object in the
+        // bucket.
+        'previewPath',
+        'pageCount',
         'coverMetrics',
         'rightsStatus',
         'rightsNote',

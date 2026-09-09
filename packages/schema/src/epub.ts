@@ -199,7 +199,6 @@ export interface EpubBook {
   isbn?: string;
   isbn13?: string;
   editionNumber?: string;
-  pageCount?: number;
   wordCount?: number;
   trimSize?: string;
   paperType?: 'white' | 'cream';
@@ -224,6 +223,17 @@ export interface EpubBook {
   epubUrl?: string;
   /** Pressed PDF, offered alongside the EPUB. */
   pdfUrl?: string;
+  /**
+   * Storage object path of the press preview: the opening pages of the pressed
+   * PDF, cut from the same typesetting run so the author sees the real thing.
+   *
+   * A PATH, not a URL, because nothing under `converted/` is readable without a
+   * callable. SERVER-OWNED: an author who could write it would point the
+   * preview callable at any object in the bucket.
+   */
+  previewPath?: string;
+  /** Pages in the finished edition, measured by the press. */
+  pageCount?: number;
   /** Measured by the press when it fetched the cover. */
   coverMetrics?: CoverMetrics;
   /** Chapters offered as a free sample. Null means the press picks the first. */

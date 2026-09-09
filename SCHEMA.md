@@ -141,6 +141,8 @@ writer; the weight returns on its own.
 a dedicated check must not also be counted by `clean_conversion`, or one dropped
 image costs points twice; the excluded codes are listed in `SCORED_ELSEWHERE`
 next to the check that owns each.
+| `previewPath` | Storage path of the press preview: the first 8 pages of the pressed PDF, cut from the same typesetting run. A path, not a URL, because nothing under `converted/` is readable without a callable. **Server-owned** |
+| `pageCount` | Pages in the finished edition, measured by the press |
 | `coverMetrics` | `{ width, height, bytes, contentType, fetchedOk }`. `fetchedOk: false` used to be a silent `console.warn` |
 | `previewChapters` | Chapters offered as a free sample |
 

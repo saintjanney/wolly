@@ -24,6 +24,7 @@ const { convertManuscript, EmptyManuscriptError } = require('../lib/convert');
 const { UnsupportedManuscriptError } = require('../lib/ingest');
 const { sanitizeHtml, toXhtml, toPlainText } = require('../lib/book-html');
 const { splitChapters, splitChaptersWithStats } = require('../lib/epub');
+const { PREVIEW_PAGES } = require('../lib/pdf');
 const { ingest } = require('../lib/ingest');
 
 const fixtures = require('./fixtures');
@@ -50,6 +51,7 @@ async function press(name, fileName, manuscript, extra = {}) {
   });
   writeFileSync(join(OUT_DIR, `${name}.epub`), result.epub);
   writeFileSync(join(OUT_DIR, `${name}.pdf`), result.pdf);
+  writeFileSync(join(OUT_DIR, `${name}.preview.pdf`), result.preview);
   return result;
 }
 
@@ -615,6 +617,57 @@ describe('signals for the publishing report', () => {
       manuscript: await fixtures.noHeadingsDocx(),
     });
     assert.equal(result.headingLevel, null);
+  });
+
+  /**
+   * The preview is the author looking at their own book before deciding to sell
+   * it, so the only thing that makes it worth showing is that it IS the book.
+   * An approximation that differs from the finished file is worse than nothing:
+   * it makes a promise about the artefact that the artefact does not keep.
+   */
+  it('previews the real edition, not a re-render of it', async () => {
+    const result = await convertManuscript({
+      ...BASE,
+      manuscriptFileName: 'novel.docx',
+      manuscript: await fixtures.novelDocx(),
+    });
+
+    assert.equal(result.preview.subarray(0, 5).toString('latin1'), '%PDF-');
+    const full = await PDFDocument.load(result.pdf);
+    const preview = await PDFDocument.load(result.preview);
+
+    assert.equal(result.pageCount, full.getPageCount(), 'pageCount describes the full edition');
+    assert.ok(result.pageCount > 0);
+    assert.equal(
+      preview.getPageCount(),
+      Math.min(PREVIEW_PAGES, full.getPageCount()),
+      'the preview is the opening pages, or the whole book when it is shorter',
+    );
+
+    // Same typesetting run means same paper. A separate render could quietly
+    // pick a different sheet size and nothing else would notice.
+    const [fw, fh] = [full.getPage(0).getWidth(), full.getPage(0).getHeight()];
+    const [pw, ph] = [preview.getPage(0).getWidth(), preview.getPage(0).getHeight()];
+    assert.equal(pw, fw, 'preview page width differs from the edition');
+    assert.equal(ph, fh, 'preview page height differs from the edition');
+
+    // And it is traceable: a preview can leave the building like any pressing.
+    assert.equal(preview.getKeywords().includes(result.provenance.fingerprint), true);
+    assert.match(preview.getTitle(), /preview/i, 'a preview must not present itself as the edition');
+  });
+
+  it('previews a book shorter than the preview length without failing', async () => {
+    // pageRanges 1-8 on a two-page book: Chromium clamps rather than erroring,
+    // and a short work must not break the press.
+    const result = await convertManuscript({
+      ...BASE,
+      manuscriptFileName: 'notes.txt',
+      manuscript: Buffer.from(fixtures.PLAIN_TEXT),
+    });
+    const full = await PDFDocument.load(result.pdf);
+    const preview = await PDFDocument.load(result.preview);
+    assert.ok(full.getPageCount() < PREVIEW_PAGES, 'fixture should be shorter than the preview');
+    assert.equal(preview.getPageCount(), full.getPageCount());
   });
 
   it('counts images kept and dropped', async () => {

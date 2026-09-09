@@ -128,11 +128,16 @@ export const onConversionRequested = onDocumentWritten(
       const base = `converted/${bookId}/${result.provenance.fingerprint}`;
       const epubPath = `${base}/book.epub`;
       const pdfPath = `${base}/book.pdf`;
+      const previewPath = `${base}/preview.pdf`;
       await bucket.file(epubPath).save(result.epub, {
         contentType: 'application/epub+zip',
         resumable: false,
       });
       await bucket.file(pdfPath).save(result.pdf, {
+        contentType: 'application/pdf',
+        resumable: false,
+      });
+      await bucket.file(previewPath).save(result.preview, {
         contentType: 'application/pdf',
         resumable: false,
       });
@@ -145,6 +150,11 @@ export const onConversionRequested = onDocumentWritten(
         fileType: 'epub',
         epubUrl: `${publicBase}/${epubPath}`,
         pdfUrl: `${publicBase}/${pdfPath}`,
+        // The object PATH, not a URL. Nothing under converted/ is readable
+        // without going through a callable, and storing a URL here would invite
+        // a client to try fetching it directly and quietly fail.
+        previewPath,
+        pageCount: result.pageCount,
         conversion: {
           fingerprint: result.provenance.fingerprint,
           contentSha256: result.contentSha256,
