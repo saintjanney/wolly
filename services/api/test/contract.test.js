@@ -264,3 +264,109 @@ test('the basis decides who carries the payment processor fee, and nothing else'
   const cheapFee = splitSale({ grossMinor: 5000, providerFeeMinor: 20, terms: { authorShare: 0.7, basis: 'gross' } });
   assert.equal(cheapFee.authorEarningsMinor, gross.authorEarningsMinor);
 });
+
+/**
+ * The publish gate and the publish pre-flight are two implementations of one
+ * rule, and they must not drift.
+ *
+ * `blockingFailures()` runs in the browser, which makes it a guide rather than
+ * a gate: a gate that runs on the client is not a gate. So
+ * `signPublishingContract` re-derives the author-owned blocking conditions
+ * server-side. If the schema gains a blocking check the callable does not
+ * enforce, a book could be published without it; if the callable enforces one
+ * the schema does not show, an author would be refused for a reason no screen
+ * ever mentioned.
+ */
+test('the server-side publish gate covers exactly the author-owned blocking checks', () => {
+  const ts = require('typescript');
+  const load = (relPath) => {
+    const compiled = ts.transpileModule(readSource(relPath), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    }).outputText;
+    const mod = { exports: {} };
+    new Function('exports', 'module', 'require', compiled)(
+      mod.exports, mod,
+      (id) => (id === './revenue' ? load('packages/schema/src/revenue.ts') : require(id)),
+    );
+    return mod.exports;
+  };
+  const { CHECKS, CHECK_IDS, AWAITING_WOLLY_TO_BUILD } = load('packages/schema/src/publishing-report.ts');
+
+  // What the schema says must block, that the author can actually do something
+  // about. Wolly's own review gates are excluded on purpose: they happen in
+  // response to the request, so requiring them before it would deadlock.
+  // Checks with no writer yet are excluded because nothing can satisfy them.
+  const expected = CHECK_IDS.filter(
+    (id) => CHECKS[id].blocking
+      && CHECKS[id].owner === 'author'
+      && !AWAITING_WOLLY_TO_BUILD.has(id),
+  ).sort();
+
+  // What the callable enforces, read from its own declared list.
+  const src = readSource('services/api/src/contract.ts');
+  const block = src.match(/AUTHOR_BLOCKING_CHECKS = \[([\s\S]*?)\]/);
+  assert.ok(block, 'AUTHOR_BLOCKING_CHECKS not found in services/api/src/contract.ts');
+  const enforced = block[1]
+    .split(',')
+    .map((x) => x.trim().replace(/['\s]/g, ''))
+    .filter(Boolean)
+    .sort();
+
+  assert.deepEqual(
+    enforced,
+    expected,
+    'the publish gate and the publish pre-flight disagree about what blocks a book',
+  );
+
+  // And every id it claims to enforce is actually tested for in the body, so
+  // the list cannot become decorative. Whitespace-normalised, because a long
+  // failure message puts the call across several lines.
+  const flat = src.replace(/\s+/g, ' ');
+  for (const id of enforced) {
+    assert.ok(
+      flat.includes(`fail( '${id}'`) || flat.includes(`fail('${id}'`),
+      `${id} is listed as enforced but nothing in the callable fails on it`,
+    );
+  }
+});
+
+test('the publish gate reads the revenue terms the same way the schema does', () => {
+  // services/api cannot import @wolly/schema, so readTerms is a third copy of
+  // the validator. `authorShare: 70` typed for 0.7 would sign an author to
+  // seventy times the sale price, and the callable freezes it onto a contract.
+  const ts = require('typescript');
+  const compiled = ts.transpileModule(readSource('packages/schema/src/revenue.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const canonical = { exports: {} };
+  new Function('exports', 'module', 'require', compiled)(canonical.exports, canonical, require);
+
+  // Transpile the callable's own source rather than stripping types by hand:
+  // a regex that almost understands TypeScript is how a contract test starts
+  // passing for the wrong reason. The module is not executed (it imports
+  // firebase-functions); only the compiled function is lifted out.
+  const apiJs = ts.transpileModule(readSource('services/api/src/contract.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const start = apiJs.indexOf('function readTerms');
+  assert.ok(start > 0, 'readTerms not found in the compiled callable');
+  const end = apiJs.indexOf('\n}', start) + 2;
+  const copy = new Function(`${apiJs.slice(start, end)}; return readTerms;`)();
+
+  for (const raw of [
+    { authorShare: 0.7, basis: 'gross' },
+    { authorShare: 0.6, basis: 'net' },
+    { authorShare: 70, basis: 'gross' },
+    { authorShare: 0, basis: 'gross' },
+    { authorShare: 1, basis: 'gross' },
+    { authorShare: 'x' },
+    {},
+    null,
+  ]) {
+    assert.deepEqual(
+      copy(raw),
+      canonical.exports.readRevenueTerms(raw),
+      `readTerms disagrees with readRevenueTerms for ${JSON.stringify(raw)}`,
+    );
+  }
+});
