@@ -54,6 +54,20 @@ service cloud.firestore {
     }
 
     /**
+     * Ownership is not transferable by the client.
+     *
+     * The update rule authorises against the EXISTING `ownerUserId`, which is
+     * correct, but nothing stopped the write from changing it: an author could
+     * hand a live book, and every future sale of it, to any uid they liked, and
+     * `publishedImpliesOwned()` only ever checked that the new value was a
+     * non-empty string. Transfers are a staff action; the `isAdmin()` clause is
+     * not gated on this.
+     */
+    function ownerUnchanged() {
+      return request.resource.data.ownerUserId == resource.data.ownerUserId;
+    }
+
+    /**
      * Book fields only the server may write.
      *
      * `rightsStatus` is the one that matters most: it is what a takedown sets,
@@ -72,7 +86,13 @@ service cloud.firestore {
         'coverMetrics',
         'rightsStatus',
         'rightsNote',
-        'rightsUpdatedAt'
+        'rightsUpdatedAt',
+        // MONEY. `currentTermsFor()` in services/payments prefers a book's own
+        // `revenueTerms` over the platform settings document when a checkout
+        // starts, so an author who could write this field would set their own
+        // share of every sale of their book. Staff set it through the
+        // `isAdmin()` update clause, which does not consult this list.
+        'revenueTerms'
       ];
     }
 
@@ -206,6 +226,7 @@ service cloud.firestore {
             || request.resource.data.conversionStatus == 'requested');
       allow update: if isAuthenticated()
         && isOwner(resource.data.ownerUserId)
+        && ownerUnchanged()
         && publishedImpliesOwned()
         && !writesServerOwnedBookFields()
         && conversionStatusIsRequestOnly();

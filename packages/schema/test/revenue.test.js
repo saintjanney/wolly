@@ -154,3 +154,29 @@ test('on the gross basis an author earns the same however the reader paid', () =
     T.splitSale({ grossMinor: 5000, providerFeeMinor: 195, terms: net }).authorEarningsMinor,
   );
 });
+
+test('a per-book override is server-owned, or an author sets their own share', () => {
+  // currentTermsFor() in services/payments prefers a book's own revenueTerms
+  // over the platform settings document, so this field decides money. It was
+  // shipped without being added to the rules' server-owned list, which let an
+  // author write it on their own book and take up to the maximum share of every
+  // sale. This asserts the two lists agree, the same way the rights registry
+  // pins its own.
+  const rules = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'firebase-config', 'firestore.rules'),
+    'utf8',
+  );
+  const block = rules.match(/function serverOwnedBookFields\(\) \{\s*return \[([\s\S]*?)\]/);
+  assert.ok(block, 'serverOwnedBookFields() not found in firestore.rules');
+  const listed = block[1]
+    .split('\n')
+    .map((line) => line.replace(/\/\/.*$/, '').trim())
+    .join('')
+    .split(',')
+    .map((s) => s.trim().replace(/['\s]/g, ''))
+    .filter(Boolean);
+  assert.ok(
+    listed.includes('revenueTerms'),
+    `revenueTerms must be server-owned or an author can set their own share; rules list: ${listed.join(', ')}`,
+  );
+});

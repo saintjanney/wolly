@@ -255,6 +255,74 @@ const cases = [
     },
   },
 
+  // MONEY. currentTermsFor() in services/payments prefers a book's own
+  // revenueTerms over the platform settings document when a checkout starts,
+  // so an author who can write this field sets their own share of every sale.
+  {
+    __name: 'author sets their own revenue share on their own book',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'update',
+      path: DOC,
+      time: '2026-09-09T00:00:00Z',
+      resource: {
+        data: { ...EXISTING, revenueTerms: { authorShare: 0.95, basis: 'gross' } },
+      },
+    },
+    resource: { data: EXISTING },
+  },
+  {
+    __name: 'staff set a revenue override on a book',
+    expectation: 'ALLOW',
+    request: {
+      auth: { uid: 'staff-uid', token: { sub: 'staff-uid' } },
+      method: 'update',
+      path: DOC,
+      time: '2026-09-09T00:00:00Z',
+      resource: {
+        data: { ...EXISTING, revenueTerms: { authorShare: 0.8, basis: 'gross' } },
+      },
+    },
+    resource: { data: EXISTING },
+    functionMocks: [
+      {
+        function: 'get',
+        args: [{ exact_value: '/databases/(default)/documents/users/staff-uid' }],
+        result: { value: { data: { isAdmin: true } } },
+      },
+    ],
+  },
+
+  // Ownership is not transferable by a client. The update rule authorises
+  // against the EXISTING owner, which is right, but nothing stopped the write
+  // from changing it, so an author could hand a live book and all its future
+  // sales to any uid they liked.
+  {
+    __name: 'author reassigns their book to someone else',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'update',
+      path: DOC,
+      time: '2026-09-09T00:00:00Z',
+      resource: { data: { ...EXISTING, ownerUserId: 'someone-else' } },
+    },
+    resource: { data: EXISTING },
+  },
+  {
+    __name: 'author edits their own book without touching ownership',
+    expectation: 'ALLOW',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'update',
+      path: DOC,
+      time: '2026-09-09T00:00:00Z',
+      resource: { data: { ...EXISTING, description: 'A new description.' } },
+    },
+    resource: { data: EXISTING },
+  },
+
   // The payout screen LISTS an author's own sales. Rules are not filters: an
   // equality filter on the field the rule checks is what makes the query
   // provable, and the reader Library was once silently empty for exactly this

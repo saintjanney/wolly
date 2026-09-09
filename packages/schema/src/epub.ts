@@ -241,6 +241,19 @@ export interface EpubBook {
   ownsCopyright?: boolean;
   copyrightYear?: number;
   currency?: string;
+  /**
+   * A per-book revenue override, set by STAFF in the backoffice.
+   *
+   * SERVER-OWNED. `currentTermsFor()` in services/payments prefers this over
+   * `platform_settings/revenue` when a checkout starts, so an author who could
+   * write it would set their own share of every sale. It is in
+   * `serverOwnedBookFields()` in firestore.rules for that reason, and a rules
+   * test asserts an author cannot write it.
+   *
+   * Absent means the platform terms apply, which is the normal case.
+   */
+  revenueTerms?: { authorShare: number; basis: 'gross' | 'net' };
+  /** @deprecated Superseded by the revenue share. Nothing reads it. See revenue.ts. */
   royaltyOption?: RoyaltyOption;
   customerPaysProcessingFee?: boolean;
   wollyRevenueShare?: number;
