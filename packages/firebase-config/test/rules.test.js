@@ -57,6 +57,16 @@ if (!TOKEN) {
 const OWNER = 'author-uid';
 const DOC = `/databases/(default)/documents/epubs/book1`;
 
+/**
+ * Rules on a subcollection under `epubs` reach the parent book to establish
+ * ownership, so both `exists()` and `get()` on that path have to be mocked.
+ * Module-scoped because the rights, contracts and report blocks all need it.
+ */
+const bookOwnedBy = (uid) => [
+  { function: 'exists', args: [{ exact_value: DOC }], result: { value: true } },
+  { function: 'get', args: [{ exact_value: DOC }], result: { value: { data: { ownerUserId: uid } } } },
+];
+
 /** The book as it exists before the write. */
 const EXISTING = {
   ownerUserId: OWNER,
@@ -146,12 +156,7 @@ const cases = [
   // These need get()/exists() mocked, because the rule reaches the parent book
   // to establish ownership. `bookOwnedBy` builds that pair.
   ...(() => {
-    const BOOK = '/databases/(default)/documents/epubs/book1';
     const GRANT = '/databases/(default)/documents/epubs/book1/rights/g1';
-    const bookOwnedBy = (uid) => [
-      { function: 'exists', args: [{ exact_value: BOOK }], result: { value: true } },
-      { function: 'get', args: [{ exact_value: BOOK }], result: { value: { data: { ownerUserId: uid } } } },
-    ];
     const GRANT_DATA = {
       bookId: 'book1',
       ownerUserId: OWNER,
@@ -319,6 +324,77 @@ const cases = [
       path: DOC,
       time: '2026-09-09T00:00:00Z',
       resource: { data: { ...EXISTING, description: 'A new description.' } },
+    },
+    resource: { data: EXISTING },
+  },
+
+  // The publishing contract. Server-written only: it freezes the revenue share,
+  // so an author who could create one would set their own terms.
+  {
+    __name: 'author signs their own contract with terms they chose',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'create',
+      path: '/databases/(default)/documents/epubs/book1/contracts/c1',
+      time: '2026-09-09T00:00:00Z',
+      resource: {
+        data: { bookId: 'book1', authorUserId: OWNER, authorShare: 0.95, priceMinor: 5000, state: 'active' },
+      },
+    },
+    functionMocks: bookOwnedBy(OWNER),
+  },
+  {
+    __name: 'author reads their own contract',
+    expectation: 'ALLOW',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'get',
+      path: '/databases/(default)/documents/epubs/book1/contracts/c1',
+      time: '2026-09-09T00:00:00Z',
+    },
+    resource: {
+      data: { bookId: 'book1', authorUserId: OWNER, authorShare: 0.7, priceMinor: 5000, state: 'active' },
+    },
+    functionMocks: bookOwnedBy(OWNER),
+  },
+  {
+    __name: 'a stranger reads a contract',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: 'nosy', token: { sub: 'nosy' } },
+      method: 'get',
+      path: '/databases/(default)/documents/epubs/book1/contracts/c1',
+      time: '2026-09-09T00:00:00Z',
+    },
+    resource: {
+      data: { bookId: 'book1', authorUserId: OWNER, authorShare: 0.7, priceMinor: 5000, state: 'active' },
+    },
+    functionMocks: bookOwnedBy(OWNER),
+  },
+  {
+    __name: 'author ends a contract by deleting it',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'delete',
+      path: '/databases/(default)/documents/epubs/book1/contracts/c1',
+      time: '2026-09-09T00:00:00Z',
+    },
+    resource: {
+      data: { bookId: 'book1', authorUserId: OWNER, authorShare: 0.7, state: 'active' },
+    },
+    functionMocks: bookOwnedBy(OWNER),
+  },
+  {
+    __name: 'author puts their own book into the publish flow',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'update',
+      path: DOC,
+      time: '2026-09-09T00:00:00Z',
+      resource: { data: { ...EXISTING, activeContractId: 'c1' } },
     },
     resource: { data: EXISTING },
   },

@@ -191,6 +191,35 @@ export const EXEMPT_GATE: CheckId = 'manuscript_pressed';
  * REMOVE AN ID HERE IN THE SAME COMMIT THAT SHIPS ITS WRITER. The weight comes
  * back on its own; nothing else needs to change.
  */
+/**
+ * Which of the three flows a report is measuring.
+ *
+ * Uploading a title and selling it are separate acts now, so scoring them
+ * together tells an author their finished manuscript is 71% done because they
+ * have not set a price they were never asked for. A `title` report measures the
+ * work; a `listing` report adds what selling it requires.
+ *
+ * Not two engines. `listing` is `title` plus four checks, so the pre-flight and
+ * the progress screen can never disagree about what a book still needs.
+ */
+export type ReportScope = 'title' | 'listing';
+
+/**
+ * The checks that only apply once an author has decided to sell.
+ *
+ * Everything here belongs to the publish flow: a price, somewhere to send the
+ * money, and Wolly's two review gates, which are what Wolly does in response to
+ * being asked to sell something. `rights_declared` is deliberately NOT here: an
+ * author records who holds what regardless of whether Wolly ever lists the
+ * book, which is the whole point of rights being its own flow.
+ */
+export const LISTING_SCOPE_CHECKS = new Set<CheckId>([
+  'price_set',
+  'payout_destination',
+  'edition_reviewed',
+  'listing_approved',
+]);
+
 export const AWAITING_WOLLY_TO_BUILD = new Set<CheckId>([
   // Needs a rights form in the creator-hub writing `epubs/{bookId}/rights/{id}`.
   // The model and the security rules exist (see rights.ts); the form does not,
@@ -224,6 +253,15 @@ export interface ScoredBook {
   isFree?: boolean | null;
   isPublished?: boolean | null;
   conversionStatus?: string | null;
+  /**
+   * Whether the author has signed a publishing contract for this book.
+   *
+   * Selects the scope when the caller does not name one. It is a boolean rather
+   * than the contract itself because the score must not move when a contract's
+   * terms change: agreeing to sell is what adds the listing checks, and the
+   * price inside the agreement is scored by `price_set` like any other field.
+   */
+  hasContract?: boolean | null;
   conversion?: ScoredConversion | null;
   coverMetrics?: CoverMetrics | null;
   previewChapters?: number[] | null;
@@ -328,6 +366,8 @@ export interface CheckResult {
 
 export interface PublishingReport {
   bookId: string;
+  /** Which flow this report measured. See ReportScope. */
+  scope: ReportScope;
   mode: 'preparing' | 'live';
   /** Null until the press has succeeded once, so nobody ever meets a 0%. */
   score: number | null;
@@ -676,8 +716,19 @@ export const SCORED_ELSEWHERE = new Set([
 
 export function computeReport(
   input: ScoreInput,
-  options: { previous?: PublishingReport | null; now?: string } = {},
+  options: {
+    previous?: PublishingReport | null;
+    now?: string;
+    /**
+     * Defaults to `listing` for a book that has entered the publish flow or is
+     * already live, and `title` otherwise, so a caller that passes nothing gets
+     * the report the book's own state calls for.
+     */
+    scope?: ReportScope;
+  } = {},
 ): PublishingReport {
+  const scope: ReportScope =
+    options.scope ?? (input.book.hasContract || input.book.isPublished ? 'listing' : 'title');
   const results = CHECK_IDS.map((id) => EVALUATORS[id](input));
   const byId = new Map(results.map((r) => [r.id, r]));
 
@@ -690,7 +741,8 @@ export function computeReport(
   // missing surface ships. See AWAITING_WOLLY_TO_BUILD.
   for (const r of results) {
     const unmet = CHECKS[r.id].dependsOn.some((d) => (byId.get(d)?.credit ?? 0) === 0);
-    if (unmet || AWAITING_WOLLY_TO_BUILD.has(r.id)) {
+    const outOfScope = scope === 'title' && LISTING_SCOPE_CHECKS.has(r.id);
+    if (unmet || outOfScope || AWAITING_WOLLY_TO_BUILD.has(r.id)) {
       r.state = 'not_applicable';
       r.credit = 0;
       r.pointsAtStake = 0;
@@ -724,6 +776,7 @@ export function computeReport(
 
   return {
     bookId: input.book.id,
+    scope,
     mode: input.book.isPublished ? 'live' : 'preparing',
     score,
     band: bandFor(score),

@@ -240,6 +240,16 @@ export interface EpubBook {
   previewChapters?: number[] | null;
 
   // ── Rights ───────────────────────────────────────────────────────────────
+  /**
+   * The publishing contract currently governing this book, if any.
+   *
+   * SERVER-OWNED, written by `signPublishingContract`. Its presence is what
+   * moves the report from title scope to listing scope, and an author who could
+   * write it would put a book into the publish flow without ever agreeing to
+   * anything. Absent means the book is a Title: uploaded, not for sale.
+   */
+  activeContractId?: string | null;
+
   /** Absent means `clear`. `revoked` stops the delivery gate issuing links. */
   rightsStatus?: RightsStatus;
   /** Why the rights state changed, shown to staff in the backoffice. */

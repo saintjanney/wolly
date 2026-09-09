@@ -89,6 +89,10 @@ service cloud.firestore {
         // bucket.
         'previewPath',
         'pageCount',
+        // CONSENT. Its presence is what puts a book into the publish flow, so
+        // an author who could write it would be listed as having agreed to a
+        // contract they never saw.
+        'activeContractId',
         'coverMetrics',
         'rightsStatus',
         'rightsNote',
@@ -322,6 +326,29 @@ service cloud.firestore {
     match /payouts/{payoutId} {
       allow read: if isAuthenticated() && isOwner(resource.data.userId);
       allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * Publishing contracts: what an author agreed with Wolly, and when.
+     *
+     * SERVER-WRITTEN ONLY. `signPublishingContract` is the sole writer, because
+     * the document freezes the revenue share and an author who could create one
+     * would set their own. That is not hypothetical: the same defect reached
+     * production once through `epubs.revenueTerms`.
+     *
+     * Never deleted, and never edited. Changing a price means signing a new
+     * contract and ending the old one, so the record of what was agreed
+     * survives the agreement.
+     */
+    match /epubs/{bookId}/contracts/{contractId} {
+      function contractBookOwner() {
+        return isAuthenticated()
+          && exists(/databases/$(database)/documents/epubs/$(bookId))
+          && get(/databases/$(database)/documents/epubs/$(bookId)).data.ownerUserId == request.auth.uid;
+      }
+
+      allow read: if contractBookOwner() || isAdmin();
       allow create, update, delete: if false;
     }
 

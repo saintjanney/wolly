@@ -66,6 +66,9 @@ function completeInput() {
       price: 15,
       isFree: false,
       isPublished: false,
+      // "Everything done" now includes having agreed to sell: the listing
+      // checks only apply once an author has entered the publish flow.
+      hasContract: true,
       previewChapters: [1],
       conversionStatus: 'ready',
       conversion: {
@@ -618,6 +621,92 @@ test('a not-applicable check shows the author no instruction', () => {
     assert.equal(c.headline, '', `${c.id} tells the author to do something that does not apply`);
     assert.equal(c.pointsAtStake, 0);
   }
+});
+
+/**
+ * Uploading a title and selling it are separate acts, so a draft must not be
+ * scored against a price nobody has asked it for. Before the scope split, a
+ * finished manuscript with no price read as unfinished work, and the next step
+ * it offered was to go and price a book its author had not decided to sell.
+ */
+test('a title is not scored against the price it was never asked for', () => {
+  const draft = completeInput();
+  draft.book.hasContract = false;
+  draft.book.price = null;
+  draft.book.isFree = null;
+  draft.author.payoutMethod = null;
+  draft.author.payoutAccountRef = null;
+
+  const report = E.computeReport(draft, { now: NOW });
+  assert.equal(report.scope, 'title', 'a book with no contract is a title');
+
+  for (const id of E.LISTING_SCOPE_CHECKS) {
+    const check = report.checks.find((c) => c.id === id);
+    assert.equal(check.state, 'not_applicable', `${id} belongs to the publish flow`);
+    assert.equal(check.pointsAtStake, 0, `${id} must not be shown as points to win back`);
+  }
+
+  assert.equal(report.score, 100, 'a finished title is finished, whatever it has not been priced at');
+  assert.deepEqual(report.nextSteps, [], 'and it must not send the author to price it');
+});
+
+test('agreeing to sell is what adds the listing checks', () => {
+  const before = completeInput();
+  before.book.hasContract = false;
+  before.book.price = null;
+  before.author.payoutMethod = null;
+  before.author.payoutAccountRef = null;
+
+  const after = { ...before, book: { ...before.book, hasContract: true } };
+
+  assert.equal(E.computeReport(before, { now: NOW }).scope, 'title');
+  assert.equal(E.computeReport(after, { now: NOW }).scope, 'listing');
+
+  const listing = E.computeReport(after, { now: NOW });
+  assert.ok(
+    listing.checks.find((c) => c.id === 'price_set').state === 'attention',
+    'once they have agreed to sell, the price is real work',
+  );
+  assert.ok(
+    E.blockingFailures(listing).some((b) => b.id === 'price_set'),
+    'and it blocks publishing until it is done',
+  );
+});
+
+test('a published book is always scored in listing scope', () => {
+  // Belt and braces: a live book missing a contract record (a legacy import,
+  // say) must not slip back to title scope and report itself finished.
+  const live = completeInput();
+  live.book.hasContract = false;
+  live.book.isPublished = true;
+  assert.equal(E.computeReport(live, { now: NOW }).scope, 'listing');
+});
+
+test('the scope is one engine, not two', () => {
+  // A listing report is a title report plus four checks. If the two ever
+  // diverged, the progress screen and the publish pre-flight would disagree
+  // about what a book still needs, which is the thing this design exists to
+  // prevent.
+  const input = completeInput();
+  const title = E.computeReport(input, { now: NOW, scope: 'title' });
+  const listing = E.computeReport(input, { now: NOW, scope: 'listing' });
+
+  const applicable = (r) => new Set(r.checks.filter((c) => c.state !== 'not_applicable').map((c) => c.id));
+  const extra = [...applicable(listing)].filter((id) => !applicable(title).has(id));
+  assert.deepEqual(new Set(extra), E.LISTING_SCOPE_CHECKS);
+
+  // And every check they share reaches the same verdict from the same inputs.
+  for (const c of title.checks.filter((x) => x.state !== 'not_applicable')) {
+    const other = listing.checks.find((x) => x.id === c.id);
+    assert.equal(other.credit, c.credit, `${c.id} scored differently in the two scopes`);
+    assert.equal(other.headline, c.headline, `${c.id} says something different in the two scopes`);
+  }
+});
+
+test('rights are not a publish-flow concern', () => {
+  // Recording who holds what is its own flow, done whether or not Wolly ever
+  // lists the book, so it must not be scoped away with the commerce checks.
+  assert.ok(!E.LISTING_SCOPE_CHECKS.has('rights_declared'));
 });
 
 test('rights never claim verification Wolly has not performed', () => {

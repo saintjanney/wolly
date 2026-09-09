@@ -146,6 +146,50 @@ next to the check that owns each.
 | `coverMetrics` | `{ width, height, bytes, contentType, fetchedOk }`. `fetchedOk: false` used to be a silent `console.warn` |
 | `previewChapters` | Chapters offered as a free sample |
 
+### The publishing contract
+
+Uploading a title and selling it are separate acts. A manuscript becomes a
+**Title** the moment it is uploaded and stays one until its author decides to
+sell it; that decision is recorded at `epubs/{bookId}/contracts/{contractId}`.
+
+**Server-written only.** `signPublishingContract` is the sole writer, because the
+document freezes the revenue share and an author who could create one would set
+their own terms. Never edited, never deleted: changing a price means signing a
+new contract and ending the old one, so the record of what was agreed outlives
+the agreement.
+
+`epubs.activeContractId` points at the live one and is **server-owned**. Its
+presence is what moves the report from title scope to listing scope, so an author
+who could write it would be listed as having agreed to something they never saw.
+
+**Deliberately not a `RightsGrant`.** The registry has the vocabulary to express
+"Wolly may sell the ebook worldwide", which is exactly the trap. The registry
+records claims Wolly does *not* verify, made by the author about third parties;
+this is an agreement Wolly is itself a party to and bound by. Collapsing them
+would mean an author editing a licence could change what Wolly owes them.
+
+`PUBLISHING_AGREEMENT_V1` is stored **verbatim** on each contract, mirroring
+`RightsDeclaration`: "they accepted" is worth little without "to what words, and
+when". Replacing the wording is a version bump, never an edit. Tests assert it
+uses no banned vocabulary and promises no takedown Wolly cannot perform, since
+RIGHTS.md is explicit that copies already downloaded cannot be recalled.
+
+### Report scope
+
+`computeReport(input, { scope })` measures either a **title** or a **listing**.
+Four checks belong to the publish flow alone: `price_set`, `payout_destination`,
+`edition_reviewed`, `listing_approved`. In title scope they are `not_applicable`
+and leave the denominator, so a finished manuscript is not told it is incomplete
+for want of a price nobody asked it for.
+
+Scope defaults from the book's own state (`hasContract` or `isPublished`), so a
+caller that passes nothing gets the report the book calls for. It is one engine,
+not two: a listing report is a title report plus those four checks, which is what
+stops the progress screen and the publish pre-flight disagreeing.
+
+`rights_declared` is deliberately **not** listing-scoped: an author records who
+holds what whether or not Wolly ever lists the book.
+
 ### Revenue share
 
 The split between an author and Wolly is **configurable by staff** in the
