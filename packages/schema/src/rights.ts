@@ -147,6 +147,28 @@ export interface RightsGrant {
    */
   verifiedScope?: string | null;
 
+  /**
+   * A Storage path to the agreement backing this claim, e.g. the contract PDF.
+   *
+   * AUTHOR-WRITABLE, unlike the verification fields below it. Attaching a file
+   * is the author answering the question; deciding whether the file says what
+   * they claim is Wolly's job, and that is `verificationState`, which they
+   * cannot touch. Separating the two is what lets Wolly stop nagging without
+   * ever implying it has checked anything.
+   *
+   * Both `needsVerification()` and `deriveRightsBadge()` have always branched on
+   * this, through an ad-hoc parameter type, while the field itself existed
+   * nowhere. That left the third-party path dead: an author who said a publisher
+   * holds their print rights was told "needs verification" permanently, with
+   * nothing anywhere to attach, which is the entire situation the function was
+   * written for.
+   *
+   * Convention: `rights/{ownerUserId}/{bookId}/{filename}` in the default
+   * bucket, so ownership is provable from the path with no Firestore read. See
+   * the matching block in storage.rules.
+   */
+  evidenceRef?: string | null;
+
   /** Archived rather than deleted, so the record of what was once claimed survives. */
   archivedAt?: FirestoreTimestamp | null;
 
@@ -174,11 +196,13 @@ export const EXPIRING_WINDOW_DAYS = 90;
  * midnight and nobody runs a job. Deriving them means no status can ever be
  * wrong.
  *
- * Precedence, in order: expired, then expiring, then needs-verification, then
- * the author's own disposition. Expired outranks needs-verification because an
- * expired grant needs renewing rather than checking.
+ * Precedence, in order: archived, then expired, then expiring, then
+ * needs-verification, then the author's own disposition. Each outranks the next
+ * because it names the more useful action: an expired grant needs renewing
+ * rather than checking, and an archived one needs nothing at all.
  */
 export type RightsBadge =
+  | 'archived'
   | 'expired'
   | 'expiring'
   | 'needs_verification'
@@ -189,10 +213,16 @@ export type RightsBadge =
 export function deriveRightsBadge(
   grant: Pick<
     RightsGrant,
-    'endDate' | 'disposition' | 'verificationState' | 'holderKind'
-  > & { evidenceRef?: string | null },
+    'endDate' | 'disposition' | 'verificationState' | 'holderKind' | 'evidenceRef' | 'archivedAt'
+  >,
   now: Date = new Date(),
 ): RightsBadge {
+  // An archived grant is history, not a live claim. Ranked above everything
+  // because nothing else about it is worth acting on: an archived grant that
+  // has also expired does not need renewing, and one that names a publisher
+  // does not need an agreement chasing. This was omitted, so a grant the author
+  // had put away still showed as "licensed" and still asked for paperwork.
+  if (grant.archivedAt) return 'archived';
   if (grant.endDate) {
     const end = Date.parse(`${grant.endDate}T23:59:59Z`);
     if (Number.isFinite(end)) {
@@ -212,7 +242,7 @@ export function deriveRightsBadge(
  * demands paperwork from every author is a registry nobody fills in.
  */
 export function needsVerification(
-  grant: Pick<RightsGrant, 'verificationState' | 'holderKind'> & { evidenceRef?: string | null },
+  grant: Pick<RightsGrant, 'verificationState' | 'holderKind' | 'evidenceRef'>,
 ): boolean {
   const state = grant.verificationState ?? 'unverified';
   if (state === 'disputed' || state === 'needs_evidence') return true;
@@ -250,10 +280,10 @@ export function proposedDefaultGrant(input: {
 /**
  * The exact sentence an author confirms. Stored verbatim on the grant.
  *
- * Every word here is load-bearing. RIGHTS.md bans registered, certified,
- * protected, secured, proof and ownership confirmed across every rights
- * surface; the permitted vocabulary is recorded, your record, checked, and you
- * told us.
+ * Every word here is load-bearing. See the vocabulary section of RIGHTS.md,
+ * which bans registered, certified, protected, secured, proof and ownership
+ * confirmed across every rights surface; the permitted words are recorded, your
+ * record, checked, and you told us. `rights.test.js` enforces it.
  */
 export const RIGHTS_DECLARATION_V1 = {
   version: 'rights-declaration-v1',

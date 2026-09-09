@@ -203,6 +203,31 @@ deadline. Never any claim that covers a file the reader exported.
 ships, "removed from your devices the next time they connect". Never
 "destroyed", "wiped" or "remotely erased".
 
+**On rights records specifically.** Wolly stores what an author tells it. It does
+not check, register or confer anything, and no surface may imply otherwise. This
+list is enforced by test (`packages/schema/test/rights.test.js`) against the
+declaration text, and applies to every rights screen, badge, email and button
+label:
+
+| Never say | Because | Say instead |
+|---|---|---|
+| registered | Implies a copyright registry. Wolly is not one, and in most jurisdictions registration is a government act | recorded |
+| certified | Implies Wolly issued a certificate attesting to something | your record |
+| protected | Implies enforcement Wolly cannot perform | recorded |
+| secured | Same, plus a security connotation that is simply untrue | recorded |
+| proof / proof of ownership | A record of a claim is not evidence the claim is good | you told us |
+| ownership confirmed | Wolly confirms nothing about ownership | you told us |
+| verified (of anything a human has not read) | The one word reserved for a real human check | checked (only once someone has) |
+
+The permitted vocabulary is: **recorded**, **your record**, **checked**, and
+**you told us**. `verified` is allowed only where a person at Wolly has actually
+looked at evidence, which is why `verificationState` is server-owned and an
+author cannot write it.
+
+The same discipline applies to `verifiedScope`: write what was actually checked
+("saw a signed 2024 agreement naming Sub-Saharan Africa print rights"), never a
+conclusion Wolly cannot support ("Wolly confirms this author owns this work").
+
 **One legal coupling to check before launch.** California AB 2426 (in force
 1 January 2025) restricts advertising digital goods with the words "buy" or
 "purchase" without disclosing that access is revocable, and exempts sellers who

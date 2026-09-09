@@ -102,6 +102,15 @@ service cloud.firestore {
      * imply. Kept flat rather than nested because affectedKeys() enumerates
      * top-level keys only, so a nested map cannot be protected field by field.
      */
+    /**
+     * Rights fields only Wolly may write.
+     *
+     * `evidenceRef` is deliberately NOT here. Attaching the agreement is the
+     * author answering the question; deciding whether it says what they claim is
+     * Wolly's job, and that is `verificationState`, which they cannot touch.
+     * Separating the two is what lets Wolly stop asking without ever implying it
+     * has checked anything.
+     */
     function serverOwnedRightsFields() {
       return [
         'verificationState',
