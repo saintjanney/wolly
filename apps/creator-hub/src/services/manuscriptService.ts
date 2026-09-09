@@ -128,6 +128,37 @@ export class ManuscriptService {
     return data.url;
   }
 
+  /**
+   * The press preview: the opening pages of the pressed PDF, as bytes.
+   *
+   * Bytes rather than a link because everything under `converted/` is served
+   * through a callable, and fetching a signed URL cross-origin would need
+   * bucket CORS that this project cannot set from CI. There is no URL to
+   * expire either.
+   *
+   * Returns a blob URL the caller must revoke when it is done with it.
+   */
+  static async previewBlobUrl(
+    bookId: string,
+  ): Promise<{ url: string; pageCount: number | null }> {
+    const call = httpsCallable<
+      { bookId: string },
+      { bytes: string; contentType: string; pageCount: number | null }
+    >(functions, 'getBookPreviewBytes');
+    const { data } = await call({ bookId });
+    if (!data?.bytes) {
+      throw new ManuscriptError('The server did not return a preview.');
+    }
+
+    // base64 -> bytes. atob gives one character per byte, which is exactly what
+    // Uint8Array.from needs; a TextEncoder here would mangle anything non-ASCII
+    // in the PDF's binary streams.
+    const binary = atob(data.bytes);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: data.contentType || 'application/pdf' });
+    return { url: URL.createObjectURL(blob), pageCount: data.pageCount ?? null };
+  }
+
   /** Re-presses the manuscript already attached to the book. */
   static async retry(bookId: string): Promise<void> {
     await updateDoc(doc(db, EPUBS, bookId), {
