@@ -37,6 +37,11 @@ export const onConversionRequested = onDocumentWritten(
     timeoutSeconds: 540,
     // One conversion at a time per instance: Chromium is not a good neighbour.
     concurrency: 1,
+    // The biggest single claim on the region's CPU quota: 2GiB at concurrency
+    // 1, so every permitted instance reserves a whole CPU. Three concurrent
+    // pressings is ample for this catalogue and leaves room for everything
+    // else to deploy.
+    maxInstances: 3,
   },
   async (event) => {
     const after = event.data?.after;

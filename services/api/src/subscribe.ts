@@ -63,7 +63,7 @@ async function paystack<T>(
  *    The webhook grants the same access and marks it not to renew.
  */
 export const initializeSubscription = onCall(
-  { region: REGION, secrets: [PAYSTACK_SECRET], cors: true },
+  { region: REGION, secrets: [PAYSTACK_SECRET], cors: true, maxInstances: 5 },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {

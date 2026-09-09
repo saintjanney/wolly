@@ -70,7 +70,7 @@ interface Problem {
   message: string;
 }
 
-export const signPublishingContract = onCall({ region: REGION }, async (request) => {
+export const signPublishingContract = onCall({ region: REGION, maxInstances: 3 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in to publish.');
 
