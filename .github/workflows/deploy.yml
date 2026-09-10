@@ -277,6 +277,35 @@ jobs:
           echo "::error::functions deploy failed after 3 attempts"
           exit 1
 
+      # Cloud Run keeps every revision it has ever served, and each one holds a
+      # CPU reservation against the region's quota. Nothing collects them, so
+      # they accumulate at roughly one per service per deploy: thirteen services
+      # and a few months reached 661 revisions in europe-west2, exhausted the
+      # quota, and made this workflow's functions step fail outright, including
+      # for functions that had not changed.
+      #
+      # The error names CPU, so it reads as a capacity problem. It is not: this
+      # platform serves 49 books to 14 users. It is an accounting problem, and
+      # the retained revisions are the account.
+      #
+      # Pruning here keeps the usage flat instead of letting it climb until the
+      # next deploy is the one that fails. It runs AFTER the deploy, so the
+      # revision just shipped is always among those kept, and it never deletes a
+      # revision serving traffic.
+      #
+      # Non-fatal on purpose: a book that shipped should not be un-shipped
+      # because tidying up afterwards failed. A failure here shows as a warning
+      # and the next run tries again.
+      - name: Prune old Cloud Run revisions
+        if: always()
+        continue-on-error: true
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json"
+          PROJECT="$FIREBASE_PROJECT" REGION=europe-west2 KEEP=3 \
+            ./scripts/prune-cloud-run-revisions.sh --apply
+
   # ── Mobile + reader web: Flutter ────────────────────────────────────────────
   reader:
     needs: config
