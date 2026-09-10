@@ -440,3 +440,65 @@ test('a book checkout tells the webhook what it is', () => {
     'the webhook guard the metadata is written for has moved or changed',
   );
 });
+
+/**
+ * The reconciler is the only thing that finishes a sale the reader never came
+ * back to confirm, so the ways it can silently do nothing all matter.
+ */
+test('the reconciler settles through the same code the client-facing verify does', () => {
+  // Two implementations of settlement would be two ways to get money wrong, in
+  // the path nobody is watching. There must be exactly one batch commit for a
+  // sale, and both callers must reach it.
+  const src = readSource('services/payments/src/index.js');
+  assert.equal(
+    (src.match(/await batch\.commit\(\)/g) || []).length,
+    1,
+    'settlement is implemented more than once',
+  );
+  assert.ok(src.includes('async function settlePurchase('), 'settlePurchase not found');
+  // Both the HTTP verify and the schedule call it.
+  assert.equal(
+    (src.match(/await settlePurchase\(/g) || []).length,
+    2,
+    'expected both verifyPaystackPayment and the reconciler to settle through it',
+  );
+});
+
+test('the reconciler holds the same pending rule as the client verify', () => {
+  // If the reconciler wrote Paystack's status raw, it would move a live sale
+  // out of pending and then never look at it again, which is the exact defect
+  // it exists to recover from.
+  const src = readSource('services/payments/src/index.js');
+  const fn = src.slice(src.indexOf('exports.reconcilePendingPurchases'));
+  assert.match(
+    fn,
+    /status: terminal \|\| 'pending'/,
+    'the reconciler must leave a non-terminal sale pending',
+  );
+  assert.match(fn, /providerStatus: verification\.status/);
+});
+
+test('the reconciler query has an index, or it fails on the first real run', () => {
+  // A composite query without an index throws at runtime, not at deploy, so
+  // this would look fine until the first stuck purchase existed.
+  const src = readSource('services/payments/src/index.js');
+  const fn = src.slice(src.indexOf('exports.reconcilePendingPurchases'));
+  assert.match(fn, /where\('status', '==', 'pending'\)/);
+  assert.match(fn, /where\('launchedAt', '<'/);
+
+  const indexes = JSON.parse(readSource('packages/firebase-config/firestore.indexes.json'));
+  const match = indexes.indexes.find(
+    (i) =>
+      i.collectionGroup === 'purchases' &&
+      i.fields.map((f) => f.fieldPath).join(',') === 'status,launchedAt',
+  );
+  assert.ok(match, 'purchases(status, launchedAt) index is missing from firestore.indexes.json');
+});
+
+test('the reconciler is bounded and cannot fan out without limit', () => {
+  const src = readSource('services/payments/src/index.js');
+  const fn = src.slice(src.indexOf('exports.reconcilePendingPurchases'));
+  assert.match(fn, /\.limit\(RECONCILE_BATCH\)/, 'the query must be bounded');
+  // And one bad purchase must not end a run that has a paid reader behind it.
+  assert.match(fn, /catch \(error\)/, 'the per-purchase loop must survive one failure');
+});

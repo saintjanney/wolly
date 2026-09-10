@@ -175,6 +175,34 @@ invented yet.
 `paystackWebhook` in `services/api`, which drops book events so the two do not
 both write the same purchase. Nothing was setting it, so that guard never fired.
 
+### How a sale actually completes
+
+Three things can settle a book purchase, and only the first two existed before:
+
+1. **The client returns from Paystack** and calls `verifyPaystackPayment`. The
+   fast path, and until now the ONLY path.
+2. **`reconcilePendingPurchases`** runs every 15 minutes over purchases that have
+   been `pending` for more than 10 minutes, verifies each against Paystack with
+   the secret key, and settles the ones that were paid.
+3. Nothing else. `paystackWebhook` in `services/api` deliberately drops book
+   events so the two never write the same document.
+
+The reconciler is why a reader can close the tab. Before it, a sale completed
+only if the client came back, so a killed app, a lost signal or a browser that
+cannot follow `wolly://payment-callback` meant Paystack had the money and the
+reader had no book, with nothing anywhere to notice. It is scheduled rather than
+webhook-driven because Paystack allows one webhook URL per integration and
+`services/api` owns it: completing books there would mean a third copy of the
+money split in a codebase that cannot import this schema.
+
+Both paths settle through one `settlePurchase`, asserted by contract test to have
+exactly one batch commit. Two implementations would be two ways to get money
+wrong in the path nobody watches.
+
+The query needs `purchases(status ASC, launchedAt ASC)`, which is in
+`firestore.indexes.json`. A composite query without an index throws at runtime
+rather than at deploy, so it would look healthy until the first stuck sale.
+
 ### The publishing contract
 
 Uploading a title and selling it are separate acts. A manuscript becomes a
