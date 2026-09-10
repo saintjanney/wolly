@@ -28,7 +28,7 @@ const LINK_TTL_MS = 15 * 60 * 1000;
  * there is nothing to protect.
  */
 export const getBookDownloadUrl = onCall(
-  { region: REGION, cors: true, enforceAppCheck: false, maxInstances: 2 },
+  { region: REGION, cors: true, enforceAppCheck: false, maxInstances: 1 },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {

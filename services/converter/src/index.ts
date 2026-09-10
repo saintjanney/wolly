@@ -41,7 +41,12 @@ export const onConversionRequested = onDocumentWritten(
     // 1, so every permitted instance reserves a whole CPU. Three concurrent
     // pressings is ample for this catalogue and leaves room for everything
     // else to deploy.
-    maxInstances: 2,
+    // ONE pressing at a time, platform-wide, and it is a quota decision rather
+    // than a capacity one. This is 2GiB at concurrency 1, so every permitted
+    // instance reserves a whole CPU in a region with 20 to spend across
+    // thirteen services. A second book queues behind the first, which at 49
+    // books is not a constraint anyone will meet. Raise it with the quota.
+    maxInstances: 1,
   },
   async (event) => {
     const after = event.data?.after;

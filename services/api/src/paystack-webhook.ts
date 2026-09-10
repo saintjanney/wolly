@@ -93,7 +93,7 @@ interface PaystackPayload {
  * never handle just produces noise. Genuine problems are logged.
  */
 export const paystackWebhook = onRequest(
-  { region: REGION, secrets: [PAYSTACK_SECRET], cors: false, maxInstances: 2 },
+  { region: REGION, secrets: [PAYSTACK_SECRET], cors: false, maxInstances: 1 },
   async (req, res) => {
     if (req.method !== 'POST') {
       res.status(405).send('Method not allowed');

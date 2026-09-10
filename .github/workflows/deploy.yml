@@ -215,7 +215,7 @@ jobs:
             --allow-unauthenticated \
             --port 8080 \
             --memory 512Mi \
-            --max-instances 2 \
+            --max-instances 1 \
             --project "$FIREBASE_PROJECT" \
             --quiet
 
@@ -290,6 +290,18 @@ jobs:
       # revision just shipped is always among those kept, and it never deletes a
       # revision serving traffic.
       #
+      # KEEP=1, and the number is measured rather than chosen. A retained
+      # revision holds its CPU reservation whether or not it serves traffic:
+      # across 39 revisions the region reserved 51 vCPU, while the 13 serving
+      # ones came to 17, against a quota of 20. Keeping three rollback targets
+      # per service therefore cost 34 vCPU the region does not have, and deploys
+      # succeeded or failed depending on how many services a given commit
+      # happened to touch.
+      #
+      # The cost is real: rollback becomes redeploy-from-git rather than shifting
+      # traffic back a revision. Raise this the moment the europe-west2 CPU quota
+      # goes up, which is the actual fix.
+      #
       # Non-fatal on purpose: a book that shipped should not be un-shipped
       # because tidying up afterwards failed. A failure here shows as a warning
       # and the next run tries again.
@@ -300,7 +312,7 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
         run: |
           gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json"
-          PROJECT="$FIREBASE_PROJECT" REGION=europe-west2 KEEP=3 \
+          PROJECT="$FIREBASE_PROJECT" REGION=europe-west2 KEEP=1 \
             ./scripts/prune-cloud-run-revisions.sh --apply
 
   # ── Mobile + reader web: Flutter ────────────────────────────────────────────

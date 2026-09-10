@@ -21,6 +21,13 @@
 # than assumed from ordering. KEEP is per service and counts from the newest, so
 # the live revision plus KEEP-1 rollback targets always survive.
 #
+# WHY THE DEFAULT IS 1. A retained revision holds its CPU reservation whether or
+# not it serves traffic. Measured in europe-west2: 39 revisions reserved 51 vCPU
+# while the 13 serving ones came to 17, against a quota of 20. Three rollback
+# targets per service cost 34 vCPU the region does not have, and deploys then
+# succeeded or failed depending on how many services a commit happened to touch.
+# Raise it once the quota is raised.
+#
 #   ./scripts/prune-cloud-run-revisions.sh                  # dry run
 #   ./scripts/prune-cloud-run-revisions.sh --apply          # delete
 #   KEEP=5 ./scripts/prune-cloud-run-revisions.sh --apply
@@ -28,7 +35,7 @@ set -euo pipefail
 
 PROJECT="${PROJECT:-wolly-1133d}"
 REGION="${REGION:-europe-west2}"
-KEEP="${KEEP:-3}"
+KEEP="${KEEP:-1}"
 APPLY=false
 [ "${1:-}" = "--apply" ] && APPLY=true
 
@@ -39,6 +46,7 @@ services=$(gcloud run services list --project "$PROJECT" --region "$REGION" \
 
 total_kept=0
 total_deleted=0
+total_undeletable=0
 
 for service in $services; do
   # The revision actually serving traffic. Never a deletion candidate, whatever
@@ -51,27 +59,53 @@ for service in $services; do
     --service "$service" --sort-by="~metadata.creationTimestamp" \
     --format="value(metadata.name)")
 
+  # The live revision is kept ALWAYS and counts as one of KEEP. The rest are
+  # kept newest-first.
+  #
+  # The distinction matters after a failed deploy, which leaves a revision that
+  # is newer than the live one and has never served. Ranking purely by age kept
+  # those, so KEEP=1 retained two revisions for every service that had failed to
+  # deploy, and each held a CPU reservation the region could not spare. A
+  # revision that never served traffic is not a rollback target.
   index=0
+  [ -n "$live" ] && index=1
   for revision in $revisions; do
-    index=$((index + 1))
-    if [ "$index" -le "$KEEP" ] || [ "$revision" = "$live" ]; then
+    if [ "$revision" = "$live" ]; then
       total_kept=$((total_kept + 1))
       continue
     fi
-    total_deleted=$((total_deleted + 1))
+    index=$((index + 1))
+    if [ "$index" -le "$KEEP" ]; then
+      total_kept=$((total_kept + 1))
+      continue
+    fi
     if [ "$APPLY" = true ]; then
-      # A revision can fail to delete if something still references it. That is
-      # not worth failing the whole run over, so it is reported and skipped.
-      gcloud run revisions delete "$revision" --project "$PROJECT" --region "$REGION" \
-        --quiet >/dev/null 2>&1 || echo "  could not delete $revision"
+      # Cloud Run REFUSES to delete the latest-created revision, even one that
+      # failed and never served traffic. A failed deploy therefore leaves a
+      # reservation that cannot be released until a newer revision succeeds,
+      # which makes the next deploy likelier to fail for want of the CPU the
+      # failure is holding.
+      #
+      # Counted honestly rather than optimistically: this reported deletions it
+      # had not made, because the error was swallowed and the counter
+      # incremented anyway.
+      if gcloud run revisions delete "$revision" --project "$PROJECT" --region "$REGION" \
+        --quiet >/dev/null 2>&1; then
+        total_deleted=$((total_deleted + 1))
+      else
+        total_undeletable=$((total_undeletable + 1))
+        echo "  could not delete $revision (probably the latest created)"
+      fi
+    else
+      total_deleted=$((total_deleted + 1))
     fi
   done
 
-  echo "  $service: $index revisions, keeping $KEEP (live: ${live:-none})"
+  echo "  $service: keeping $KEEP (live: ${live:-none})"
 done
 
 if [ "$APPLY" = true ]; then
-  echo "kept $total_kept, deleted $total_deleted"
+  echo "kept $total_kept, deleted $total_deleted, could not delete $total_undeletable"
 else
   echo "would keep $total_kept, would delete $total_deleted (dry run; pass --apply)"
 fi
