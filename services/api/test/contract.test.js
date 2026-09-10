@@ -370,3 +370,73 @@ test('the publish gate reads the revenue terms the same way the schema does', ()
     );
   }
 });
+
+/**
+ * A live sale must never leave `pending`.
+ *
+ * `verifyPaystackPayment` wrote Paystack's own transaction status straight onto
+ * `purchases.status`. Paystack reports `ongoing` while a reader is still
+ * entering a mobile-money OTP, so checking on a purchase mid-payment moved it
+ * out of `pending` and into a value PurchaseStatus does not even contain.
+ * `pending` is the set anything reconciling unfinished sales looks at, so the
+ * act of checking could remove a sale from the only thing that would complete
+ * it. On Ghanaian mobile money, mid-payment is the normal case.
+ */
+test('checking on a purchase cannot move a live sale out of pending', () => {
+  const src = readSource('services/payments/src/index.js');
+  const start = src.indexOf('const TERMINAL_PROVIDER_STATUS');
+  assert.ok(start > 0, 'TERMINAL_PROVIDER_STATUS not found in services/payments');
+  const table = new Function(`${src.slice(start, src.indexOf('};', start) + 2)}; return TERMINAL_PROVIDER_STATUS;`)();
+
+  // Everything Paystack can report while a reader is still paying must be
+  // absent from the table, so the lookup falls through and leaves it pending.
+  for (const live of ['ongoing', 'pending', 'processing', '', undefined, 'something_new_paystack_added']) {
+    assert.equal(
+      table[live] ?? 'pending',
+      'pending',
+      `${String(live)} is not terminal, so the sale must stay pending`,
+    );
+  }
+
+  // And the terminal ones must map to values PurchaseStatus actually contains.
+  const ts = require('typescript');
+  const compiled = ts.transpileModule(readSource('packages/schema/src/purchase.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const purchaseSrc = readSource('packages/schema/src/purchase.ts');
+  const union = purchaseSrc
+    .slice(purchaseSrc.indexOf('export type PurchaseStatus'), purchaseSrc.indexOf(';', purchaseSrc.indexOf('export type PurchaseStatus')))
+    .match(/'[a-z]+'/g)
+    .map((x) => x.replace(/'/g, ''));
+  assert.ok(compiled.length > 0);
+  for (const [provider, wolly] of Object.entries(table)) {
+    assert.ok(
+      union.includes(wolly),
+      `${provider} maps to "${wolly}", which is not a PurchaseStatus (${union.join(', ')})`,
+    );
+  }
+
+  // The raw provider status is kept, just not in the field that decides the
+  // lifecycle.
+  assert.match(src, /providerStatus: verification\.status/, 'the provider status must still be recorded');
+});
+
+test('a book checkout tells the webhook what it is', () => {
+  // services/api's webhook drops book events with `if (meta.kind === 'book')
+  // return;` so the two do not both write the same purchase. Nothing set it, so
+  // the guard never fired and book events fell through to the subscription
+  // handler, which discarded them for want of a publicationId. The comment
+  // described an agreement only one side had heard of.
+  const payments = readSource('services/payments/src/index.js');
+  const metaStart = payments.indexOf('metadata: {');
+  assert.ok(metaStart > 0, 'no Paystack metadata block found');
+  const meta = payments.slice(metaStart, payments.indexOf('}', metaStart));
+  assert.match(meta, /kind: 'book'/, 'a book checkout must identify itself to the webhook');
+
+  const webhook = readSource('services/api/src/paystack-webhook.ts');
+  assert.match(
+    webhook,
+    /meta\.kind === 'book'/,
+    'the webhook guard the metadata is written for has moved or changed',
+  );
+});

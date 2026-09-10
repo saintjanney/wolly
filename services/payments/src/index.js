@@ -161,6 +161,20 @@ async function currentTermsFor(book) {
   }
 }
 
+/**
+ * Paystack statuses that genuinely end a sale, mapped to Wolly's lifecycle.
+ *
+ * Anything absent from this table leaves the purchase `pending`. That includes
+ * `ongoing` and `pending` themselves, which mean the reader is still paying.
+ * Being wrong in this direction leaves a sale recoverable; being wrong in the
+ * other direction loses it silently.
+ */
+const TERMINAL_PROVIDER_STATUS = {
+  failed: 'failed',
+  abandoned: 'abandoned',
+  reversed: 'failed',
+};
+
 async function getPurchaseDoc(uid, bookId) {
   const ref = db.collection('purchases').doc(`${uid}_${bookId}`);
   const snap = await ref.get();
@@ -237,6 +251,14 @@ exports.initializePaystackCheckout = functions
           reference,
           callback_url: callbackUrl,
           metadata: {
+            // `kind` is the contract with services/api's webhook, which drops
+            // book events with `if (meta.kind === 'book') return;` so the two do
+            // not both write the same purchase. Nothing was setting it, so that
+            // guard never fired and book events fell through to the
+            // subscription handler, which discarded them for want of a
+            // publicationId. The comment described an agreement only one side
+            // had ever heard of.
+            kind: 'book',
             userId: uid,
             bookId,
             bookTitle: typeof book.title === 'string' ? book.title : 'Unknown Book',
@@ -320,9 +342,22 @@ exports.verifyPaystackPayment = functions
       );
 
       if (verification.status !== 'success') {
+        // PAYSTACK'S STATUS IS NOT WOLLY'S STATUS, and writing one onto the
+        // other was a real defect: `ongoing` (the reader is still entering a
+        // mobile-money OTP) became the purchase's own status, which is not even
+        // a value PurchaseStatus contains. Worse, it moved a live sale out of
+        // `pending` while the reader was still paying, and `pending` is the set
+        // anything reconciling unfinished sales looks at. Checking on a purchase
+        // could remove it from the only thing that would have completed it.
+        //
+        // So the lifecycle leaves `pending` ONLY for something terminal.
+        // Everything else stays pending and gets looked at again, which is the
+        // safe direction to be wrong in: a stuck sale is recoverable, a sale
+        // nothing is watching is not.
         await purchaseRef.set(
           {
-            status: verification.status || 'failed',
+            status: TERMINAL_PROVIDER_STATUS[verification.status] || 'pending',
+            providerStatus: verification.status || 'unknown',
             gatewayResponse: verification.gateway_response || '',
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           },

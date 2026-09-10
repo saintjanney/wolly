@@ -150,6 +150,31 @@ next to the check that owns each.
 | `coverMetrics` | `{ width, height, bytes, contentType, fetchedOk }`. `fetchedOk: false` used to be a silent `console.warn` |
 | `previewChapters` | Chapters offered as a free sample |
 
+### Purchase status, and whose status it is
+
+`purchases.status` is **Wolly's** lifecycle: `pending | completed | failed |
+abandoned`. `providerStatus` is **Paystack's**, and the two are deliberately
+separate fields because they are not the same vocabulary.
+
+Paystack reports `ongoing` while a reader is still entering a mobile-money OTP,
+and `abandoned` when they leave checkout. `verifyPaystackPayment` used to write
+that value straight onto `status`, which produced documents carrying values
+`PurchaseStatus` does not contain and, far worse, moved a live sale out of
+`pending` while the reader was still paying. `pending` is the set anything
+reconciling unfinished sales looks at, so **checking on a purchase could remove
+it from the only thing that would have completed it.** On Ghanaian mobile money,
+mid-payment is the normal case rather than an edge one.
+
+The lifecycle now leaves `pending` only for something terminal
+(`TERMINAL_PROVIDER_STATUS` in `services/payments`); everything else stays
+pending and is looked at again. Being wrong in that direction leaves a sale
+recoverable. A contract test pins it, including for statuses Paystack has not
+invented yet.
+
+`metadata.kind: 'book'` is sent to Paystack at checkout. It is the contract with
+`paystackWebhook` in `services/api`, which drops book events so the two do not
+both write the same purchase. Nothing was setting it, so that guard never fired.
+
 ### The publishing contract
 
 Uploading a title and selling it are separate acts. A manuscript becomes a
