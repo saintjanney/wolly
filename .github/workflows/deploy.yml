@@ -243,39 +243,36 @@ jobs:
       # carried unlabelled functions before. Omitting --force means such a deploy
       # fails rather than deletes, but that is a backstop, not a plan.
       #
-      # Retried, because this project sits close to the Cloud Run CPU quota for
-      # europe-west2. Every 2nd-gen function is a Cloud Run service (11 of them
-      # now that the press is one), and a deploy briefly runs each new revision
-      # alongside the old one it replaces, so peak demand is roughly double the
-      # steady state. When it tips over, a healthy function fails to come up with
-      # "Quota exceeded for total allowable CPU per project per region" and the
-      # deploy reports an error for a function whose code is fine.
+      # NOT RETRIED, and it used to be. The retry was added for the Cloud Run CPU
+      # quota in europe-west2, on the reading that a quota failure was a race
+      # rather than a wall: retiring revisions release CPU within a minute, so a
+      # second attempt would come up clean.
       #
-      # This is a race, not a wall: retiring revisions release CPU within a
-      # minute, and a second attempt has succeeded every time. Cloud Run keeps
-      # serving the last good revision throughout, so a failure here degrades to
-      # "not updated", never to an outage.
+      # That reading was wrong in both directions, and the retry made both worse.
       #
-      # The real fix is a quota increase for Cloud Run CPU in europe-west2. Ask
-      # for one and drop the retry to a single attempt.
+      # The quota was not a race. Cloud Run never collects revisions, and 661 had
+      # accumulated in the region, each holding a CPU reservation. No number of
+      # retries could free a reservation nothing was releasing. The prune step
+      # below is the actual fix, and it keeps usage flat.
+      #
+      # And a deterministic failure was made to look like a quota one. A missing
+      # `cloudscheduler.jobs.update` permission failed attempt 1 for a reason no
+      # retry could change; attempts 2 and 3 then rebuilt every function, created
+      # fresh revisions alongside the old, and pushed the region into genuine
+      # quota exhaustion. The log ended with a quota error caused by the retry
+      # that was supposed to survive one. A permissions problem presented itself
+      # as a capacity problem, twice.
+      #
+      # One attempt. A clear failure is worth more than three slow ones, and
+      # Cloud Run keeps serving the last good revision throughout, so a failure
+      # here degrades to "not updated", never to an outage.
       - name: Deploy server functions
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
         run: |
-          for attempt in 1 2 3; do
-            if npx firebase-tools deploy \
-                 --only functions:api,functions:converter,functions:payments \
-                 --project "$FIREBASE_PROJECT" --non-interactive; then
-              echo "functions deployed on attempt $attempt"
-              exit 0
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "::warning::functions deploy attempt $attempt failed; retrying in 90s"
-              sleep 90
-            fi
-          done
-          echo "::error::functions deploy failed after 3 attempts"
-          exit 1
+          npx firebase-tools deploy \
+            --only functions:api,functions:converter,functions:payments \
+            --project "$FIREBASE_PROJECT" --non-interactive
 
       # Cloud Run keeps every revision it has ever served, and each one holds a
       # CPU reservation against the region's quota. Nothing collects them, so
