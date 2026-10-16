@@ -13,6 +13,8 @@ initializeApp({ storageBucket: 'wolly-1133d.appspot.com' });
 
 export { publishPost } from './publish';
 export { getBookDownloadUrl } from './download';
+export { getBookPreviewBytes } from './preview';
+export { signPublishingContract } from './contract';
 export { paystackWebhook } from './paystack-webhook';
 export { initializeSubscription } from './subscribe';
 export { grantComplimentarySubscription } from './comp';

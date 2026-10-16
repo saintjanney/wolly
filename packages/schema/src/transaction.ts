@@ -1,4 +1,5 @@
 import type { FirestoreTimestamp } from './firestore';
+import { DEFAULT_REVENUE_TERMS, type RevenueBasis, type RevenueTerms } from './revenue';
 
 /**
  * A completed sale, recorded once and never recalculated.
@@ -11,9 +12,9 @@ import type { FirestoreTimestamp } from './firestore';
  *
  * Deriving earnings from `purchases` plus the book's current settings produced
  * two real defects. Revenue counted `pending` rows, because the status filter
- * was implicit and two call sites forgot it. And the royalty rate was read from
- * the book's *current* `royaltyOption`, so an author changing it rewrote
- * earnings they had already been shown. Both are structurally impossible here:
+ * was implicit and two call sites forgot it. And the author's share was read from
+ * the book's *current* setting, so changing it rewrote earnings that had
+ * already been shown. Both are structurally impossible here:
  * only completed sales are ever written, and every number is frozen on the row.
  *
  * MINOR UNITS THROUGHOUT. All amounts are pesewas (GHS x 100). Floats do not
@@ -48,16 +49,23 @@ export interface Transaction {
   netMinor: number;
 
   /**
-   * The author's share, FROZEN. Not read from the book at report time.
-   */
-  royaltyRate: number;
-  /**
-   * round(grossMinor * royaltyRate).
+   * The author's share, FROZEN AT SALE TIME.
    *
-   * Deliberately a share of GROSS, not of net: it is the number the pricing
-   * screen showed the author when they set the price, and paying them less than
-   * they were told because a processor took a cut would be a surprise they never
-   * agreed to. Wolly absorbs the processing fee out of its own share.
+   * Never read from the platform settings, and never from the book, when
+   * reporting or paying. Staff can change what Wolly offers tomorrow; this row
+   * records what this sale actually paid today. That is the entire reason the
+   * ledger exists.
+   */
+  authorShare: number;
+  /** What `authorShare` was a share of, also frozen. See RevenueBasis. */
+  revenueBasis: RevenueBasis;
+  /**
+   * The author's money, in pesewas.
+   *
+   * On the `gross` basis this is a clean percentage of the sticker price, and
+   * Wolly absorbs the processor's fee out of its own share, so the author earns
+   * the same on the same book at the same price however the reader paid. On the
+   * `net` basis the fee comes off first and both sides carry it.
    */
   authorEarningsMinor: number;
   /**
@@ -95,27 +103,56 @@ export interface Transaction {
 export function splitSale(input: {
   grossMinor: number;
   providerFeeMinor: number;
-  royaltyRate: number;
+  /** The terms FROZEN on the purchase, never the platform's current settings. */
+  terms: RevenueTerms;
 }): Pick<
   Transaction,
-  'grossMinor' | 'providerFeeMinor' | 'netMinor' | 'royaltyRate' | 'authorEarningsMinor' | 'platformNetMinor'
+  | 'grossMinor'
+  | 'providerFeeMinor'
+  | 'netMinor'
+  | 'authorShare'
+  | 'revenueBasis'
+  | 'authorEarningsMinor'
+  | 'platformNetMinor'
 > {
   const grossMinor = Math.round(input.grossMinor);
   const providerFeeMinor = Math.max(0, Math.round(input.providerFeeMinor));
-  const royaltyRate = input.royaltyRate;
   const netMinor = grossMinor - providerFeeMinor;
-  const authorEarningsMinor = Math.round(grossMinor * royaltyRate);
+
+  const { authorShare, basis } = input.terms;
+  // The basis decides who carries the processor's fee, and nothing else.
+  const shareOf = basis === 'net' ? netMinor : grossMinor;
+  const authorEarningsMinor = Math.max(0, Math.round(shareOf * authorShare));
+
   return {
     grossMinor,
     providerFeeMinor,
     netMinor,
-    royaltyRate,
+    authorShare,
+    revenueBasis: basis,
     authorEarningsMinor,
+    // The remainder, never a second rounded multiplication, so the parts always
+    // sum back to net exactly and no pesewa appears or vanishes.
     platformNetMinor: netMinor - authorEarningsMinor,
   };
 }
 
-/** The royalty options a book may carry, as a rate. */
-export function royaltyRateFor(royaltyOption: string | undefined): number {
-  return royaltyOption === '35%' ? 0.35 : 0.7;
+/**
+ * The terms to use for a sale, given what was frozen on the purchase.
+ *
+ * A purchase created before the terms became configurable carries the old
+ * `royaltyRate` and no basis. Those were all shares of gross, so that is what
+ * they are read as. Without this, a checkout begun before a deploy and verified
+ * after it would fall back to the platform default and pay the wrong amount.
+ */
+export function termsFromPurchase(purchase: {
+  authorShare?: number | null;
+  revenueBasis?: string | null;
+  royaltyRate?: number | null;
+}): RevenueTerms {
+  const share = Number(purchase.authorShare ?? purchase.royaltyRate);
+  if (!Number.isFinite(share) || share <= 0 || share > 1) {
+    return { ...DEFAULT_REVENUE_TERMS };
+  }
+  return { authorShare: share, basis: purchase.revenueBasis === 'net' ? 'net' : 'gross' };
 }

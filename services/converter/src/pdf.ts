@@ -145,13 +145,29 @@ async function launchBrowser() {
   }
 }
 
-export async function buildPdf(input: PdfInput): Promise<Buffer> {
+/** How much of the book the author is shown before deciding to sell it. */
+export const PREVIEW_PAGES = 8;
+
+export interface PressedPdf {
+  /** The finished edition. */
+  pdf: Buffer;
+  /**
+   * The opening pages, for the author to look at.
+   *
+   * The SAME typesetting, not a re-render: see buildPdf.
+   */
+  preview: Buffer;
+  pageCount: number;
+}
+
+export async function buildPdf(input: PdfInput): Promise<PressedPdf> {
   const browser = await launchBrowser();
   let printed: Uint8Array;
+  let previewPrinted: Uint8Array;
   try {
     const page = await browser.newPage();
     await page.setContent(buildPrintHtml(input), { waitUntil: 'load', timeout: 120_000 });
-    printed = await page.pdf({
+    const options = {
       printBackground: false,
       displayHeaderFooter: true,
       headerTemplate: '<span></span>',
@@ -161,7 +177,21 @@ export async function buildPdf(input: PdfInput): Promise<Buffer> {
       // @page size in CSS controls the sheet; preferCSSPageSize honours it.
       preferCSSPageSize: true,
       timeout: 120_000,
-    });
+    };
+    printed = await page.pdf(options);
+
+    // The preview is the FIRST PAGES OF THE REAL BOOK, not an impression of it.
+    //
+    // Printed from the same page object, in the same browser, from a layout
+    // Chromium has already computed, with identical options plus a page range.
+    // So line breaks, page breaks, hyphenation and footers are the ones the
+    // author will actually get. Anything that re-rendered separately, or
+    // approximated the styling in HTML, could differ from the finished file,
+    // and a preview that differs is worse than no preview: it is a promise
+    // about the artefact that the artefact does not keep.
+    //
+    // Inside the try, because the finally below closes the browser.
+    previewPrinted = await page.pdf({ ...options, pageRanges: `1-${PREVIEW_PAGES}` });
   } finally {
     await browser.close();
   }
@@ -177,5 +207,25 @@ export async function buildPdf(input: PdfInput): Promise<Buffer> {
   doc.setKeywords([p.fingerprint, `wolly-book-${p.bookId}`]);
   doc.setCreationDate(new Date(p.pressedAt));
   doc.setModificationDate(new Date(p.pressedAt));
-  return Buffer.from(await doc.save());
+
+  // The preview carries the same provenance as the edition it came from. It is
+  // a Wolly pressing that can leave the building, so a copy found in the wild
+  // must trace back like any other.
+  const previewDoc = await PDFDocument.load(previewPrinted);
+  previewDoc.setTitle(`${input.title} (preview)`);
+  previewDoc.setAuthor(input.author);
+  previewDoc.setProducer(`${p.publisher} Press`);
+  previewDoc.setCreator(p.publisher);
+  previewDoc.setSubject(
+    `Preview of the first pages. Published by ${p.publisher}. Pressing ${p.fingerprint}. ${p.rights}`,
+  );
+  previewDoc.setKeywords([p.fingerprint, `wolly-book-${p.bookId}`, 'wolly-preview']);
+  previewDoc.setCreationDate(new Date(p.pressedAt));
+  previewDoc.setModificationDate(new Date(p.pressedAt));
+
+  return {
+    pdf: Buffer.from(await doc.save()),
+    preview: Buffer.from(await previewDoc.save()),
+    pageCount: doc.getPageCount(),
+  };
 }

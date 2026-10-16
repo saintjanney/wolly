@@ -13,6 +13,8 @@ export * from './user';
 export * from './review';
 export * from './purchase';
 export * from './transaction';
+export * from './revenue';
+export * from './contract';
 export * from './publishing-report';
 export * from './rights';
 export * from './social';

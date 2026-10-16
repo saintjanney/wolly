@@ -85,6 +85,16 @@ export interface BookConversion {
   emptyChapters?: number;
   shortestChapterWords?: number;
   longestChapterWords?: number;
+  /**
+   * Paragraphs that look like chapter titles but carry no heading.
+   *
+   * The commonest defect in a manuscript typed in Word: the author bolded and
+   * centred their chapter titles instead of applying Heading 1, so the file
+   * looks right and carries no structure. Without this the report can only say
+   * "this reads as one continuous piece", which tells the author nothing about
+   * what to change.
+   */
+  headingShapedParagraphs?: number;
   imageCount?: number;
   droppedImageCount?: number;
   /**
@@ -189,7 +199,6 @@ export interface EpubBook {
   isbn?: string;
   isbn13?: string;
   editionNumber?: string;
-  pageCount?: number;
   wordCount?: number;
   trimSize?: string;
   paperType?: 'white' | 'cream';
@@ -214,12 +223,33 @@ export interface EpubBook {
   epubUrl?: string;
   /** Pressed PDF, offered alongside the EPUB. */
   pdfUrl?: string;
+  /**
+   * Storage object path of the press preview: the opening pages of the pressed
+   * PDF, cut from the same typesetting run so the author sees the real thing.
+   *
+   * A PATH, not a URL, because nothing under `converted/` is readable without a
+   * callable. SERVER-OWNED: an author who could write it would point the
+   * preview callable at any object in the bucket.
+   */
+  previewPath?: string;
+  /** Pages in the finished edition, measured by the press. */
+  pageCount?: number;
   /** Measured by the press when it fetched the cover. */
   coverMetrics?: CoverMetrics;
   /** Chapters offered as a free sample. Null means the press picks the first. */
   previewChapters?: number[] | null;
 
   // ── Rights ───────────────────────────────────────────────────────────────
+  /**
+   * The publishing contract currently governing this book, if any.
+   *
+   * SERVER-OWNED, written by `signPublishingContract`. Its presence is what
+   * moves the report from title scope to listing scope, and an author who could
+   * write it would put a book into the publish flow without ever agreeing to
+   * anything. Absent means the book is a Title: uploaded, not for sale.
+   */
+  activeContractId?: string | null;
+
   /** Absent means `clear`. `revoked` stops the delivery gate issuing links. */
   rightsStatus?: RightsStatus;
   /** Why the rights state changed, shown to staff in the backoffice. */
@@ -231,6 +261,19 @@ export interface EpubBook {
   ownsCopyright?: boolean;
   copyrightYear?: number;
   currency?: string;
+  /**
+   * A per-book revenue override, set by STAFF in the backoffice.
+   *
+   * SERVER-OWNED. `currentTermsFor()` in services/payments prefers this over
+   * `platform_settings/revenue` when a checkout starts, so an author who could
+   * write it would set their own share of every sale. It is in
+   * `serverOwnedBookFields()` in firestore.rules for that reason, and a rules
+   * test asserts an author cannot write it.
+   *
+   * Absent means the platform terms apply, which is the normal case.
+   */
+  revenueTerms?: { authorShare: number; basis: 'gross' | 'net' };
+  /** @deprecated Superseded by the revenue share. Nothing reads it. See revenue.ts. */
   royaltyOption?: RoyaltyOption;
   customerPaysProcessingFee?: boolean;
   wollyRevenueShare?: number;

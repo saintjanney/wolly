@@ -19,6 +19,10 @@ export interface ConversionRequest {
 export interface ConversionResult {
   epub: Buffer;
   pdf: Buffer;
+  /** The first pages of the pressed PDF, for the author to look at. */
+  preview: Buffer;
+  /** Pages in the finished edition. */
+  pageCount: number;
   provenance: Provenance;
   contentSha256: string;
   sourceFormat: string;
@@ -38,6 +42,7 @@ export interface ConversionResult {
   emptyChapters: number;
   shortestChapterWords: number;
   longestChapterWords: number;
+  headingShapedParagraphs: number;
   imageCount: number;
   droppedImageCount: number;
   unsupportedGlyphs: string[];
@@ -96,7 +101,7 @@ export async function convertManuscript(
 
   const images: BookImage[] = ingested.images;
 
-  const [epub, pdf] = await Promise.all([
+  const [epub, pressed] = await Promise.all([
     buildEpub({
       title: request.title,
       author: request.author,
@@ -116,9 +121,16 @@ export async function convertManuscript(
     }),
   ]);
 
+  const { pdf, preview, pageCount } = pressed;
+
   return {
     epub,
     pdf,
+    // The opening pages, cut from the same typesetting run. Not hashed into
+    // contentSha256: that identifies the EDITION, and a preview is a view of it
+    // rather than a part of it.
+    preview,
+    pageCount,
     provenance,
     contentSha256: contentHash([epub, pdf]),
     sourceFormat: ingested.sourceFormat,
@@ -131,6 +143,7 @@ export async function convertManuscript(
     emptyChapters: stats.emptyChapters,
     shortestChapterWords: stats.shortestChapterWords,
     longestChapterWords: stats.longestChapterWords,
+    headingShapedParagraphs: stats.headingShapedParagraphs,
     imageCount: ingested.imageCount,
     droppedImageCount: ingested.droppedImageCount,
     // Checked against the fonts actually embedded in the PDF, so this reports

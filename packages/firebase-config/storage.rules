@@ -25,6 +25,31 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
     
+    /**
+     * Agreements an author attaches to a rights claim.
+     *
+     * Keyed by the OWNER's uid rather than the book id alone, so ownership is
+     * provable from the path without a Firestore read, matching the books block
+     * above. `RightsGrant.evidenceRef` stores this path.
+     *
+     * PRIVATE to the author and to staff. A publishing contract with a third
+     * party is commercially sensitive and is nobody else's business; there is
+     * deliberately no published-book exception the way there is for cover art.
+     *
+     * Attaching a file is the author answering Wolly's question. It is not a
+     * claim that anyone has read it: that is `verificationState`, which is
+     * server-owned and which no author can write.
+     */
+    match /rights/{userId}/{bookId}/{fileName} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 20 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/jpeg|image/png|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Future: User profile images
     match /users/{userId}/profile/{fileName} {
       allow read: if request.auth != null;

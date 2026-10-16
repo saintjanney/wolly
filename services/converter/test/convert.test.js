@@ -23,7 +23,8 @@ const { PDFDocument } = require('pdf-lib');
 const { convertManuscript, EmptyManuscriptError } = require('../lib/convert');
 const { UnsupportedManuscriptError } = require('../lib/ingest');
 const { sanitizeHtml, toXhtml, toPlainText } = require('../lib/book-html');
-const { splitChapters } = require('../lib/epub');
+const { splitChapters, splitChaptersWithStats } = require('../lib/epub');
+const { PREVIEW_PAGES } = require('../lib/pdf');
 const { ingest } = require('../lib/ingest');
 
 const fixtures = require('./fixtures');
@@ -50,6 +51,7 @@ async function press(name, fileName, manuscript, extra = {}) {
   });
   writeFileSync(join(OUT_DIR, `${name}.epub`), result.epub);
   writeFileSync(join(OUT_DIR, `${name}.pdf`), result.pdf);
+  writeFileSync(join(OUT_DIR, `${name}.preview.pdf`), result.preview);
   return result;
 }
 
@@ -241,6 +243,78 @@ describe('chapter splitting', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+/**
+ * The commonest real defect in a Word manuscript: chapter titles that were
+ * bolded and centred instead of styled as Heading 1. The file looks right and
+ * carries no structure, so the press finds no headings and the book becomes one
+ * unnavigable block.
+ *
+ * The report will only tell an author about this, so the count has to be
+ * trustworthy. The asymmetry drives the test: a miss costs a hint, but a false
+ * positive sends someone hunting a manuscript for a problem that is not there.
+ * Most of these cases are therefore about NOT counting things.
+ */
+describe('heading-shaped paragraphs', () => {
+  const count = (html) => splitChaptersWithStats(sanitizeHtml(html), 'F').stats.headingShapedParagraphs;
+
+  it('counts a bolded line standing in for a chapter title', () => {
+    assert.equal(count('<p><strong>The Long Walk Home</strong></p><p>Body text.</p>'), 1);
+  });
+
+  it('counts titles named as divisions, however they are styled', () => {
+    assert.equal(count('<p>Chapter One</p><p>x</p><p>PART TWO</p><p>y</p><p>Prologue</p>'), 3);
+  });
+
+  it('counts numbered and roman-numeral titles', () => {
+    assert.equal(count('<p>IV</p><p>a</p><p>12.</p><p>b</p>'), 2);
+  });
+
+  it('counts a shouted title', () => {
+    assert.equal(count('<p>THE RIVER</p><p>Body text.</p>'), 1);
+  });
+
+  it('does not count ordinary prose, however short', () => {
+    // "He left." is short and bold-free. Counting it would be the false
+    // positive that makes the whole signal untrustworthy.
+    assert.equal(count('<p>He left.</p><p>She stayed.</p><p>Then it rained.</p>'), 0);
+  });
+
+  it('does not count a long bolded run, which is emphasis and not a title', () => {
+    const long = 'This whole sentence is bold for emphasis and runs well past sixty characters';
+    assert.equal(count(`<p><strong>${long}</strong></p>`), 0);
+  });
+
+  it('does not count a bolded lead-in that ends like a sentence', () => {
+    assert.equal(count('<p><strong>Note:</strong></p><p>body</p>'), 0);
+  });
+
+  it('does not count a single initial', () => {
+    // "A" is upper-case and short, but one letter is not a chapter title.
+    assert.equal(count('<p>A</p><p>body</p>'), 0);
+  });
+
+  it('does not count short bold lines nested in quotes or lists', () => {
+    assert.equal(count('<blockquote><p><strong>Ama Ata Aidoo</strong></p></blockquote>'), 0);
+    assert.equal(count('<ul><li><strong>Fufu</strong></li><li><strong>Banku</strong></li></ul>'), 0);
+  });
+
+  it('reaches the threshold the report actually scores on', () => {
+    // The report stays silent below three, so a manuscript with real chapter
+    // titles left unmarked must clear it.
+    const html = ['One', 'Two', 'Three', 'Four']
+      .map((t) => `<p><strong>Chapter ${t}</strong></p><p>Body of the chapter.</p>`).join('');
+    const stats = splitChaptersWithStats(sanitizeHtml(html), 'F').stats;
+    assert.equal(stats.headingLevel, null, 'the press finds no headings, which is the whole problem');
+    assert.ok(stats.headingShapedParagraphs >= 3, `expected >= 3, got ${stats.headingShapedParagraphs}`);
+  });
+
+  it('stays quiet on a properly marked manuscript', () => {
+    const html = '<h1>Chapter One</h1><p>Body.</p><h1>Chapter Two</h1><p>Body.</p>';
+    assert.equal(count(html), 0, 'never nag a book that did it right');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 describe('pressing a novel (docx -> epub + pdf)', () => {
   let result;
   let epub;
@@ -400,6 +474,59 @@ describe('the rest of the corpus', () => {
     assert.equal(result.chapterCount, 1);
   });
 
+  /**
+   * The silent-loss bug this suite exists to prevent coming back.
+   *
+   * `data.toString('utf8')` substitutes U+FFFD for every byte it cannot read
+   * and says nothing, so a .txt saved by an older Windows editor lost every
+   * marked character without a warning. On this platform that changes words:
+   * the marked letters of Twi, Ewe, Ga and Dagbani are distinct letters, not
+   * decorated Latin ones.
+   */
+  it('recovers a manuscript that was not saved as UTF-8, and says so', async () => {
+    // "Mepa wo kyɛw" is not representable in Windows-1252, so the fixture uses
+    // the accented Latin text such a file really would carry: bytes that are
+    // valid cp1252 and invalid UTF-8.
+    const cp1252 = Buffer.from([
+      0x4c, 0x65, 0x20, 0x63, 0x61, 0x66, 0xe9, 0x2e, 0x0a, 0x0a, // "Le café.\n\n"
+      0x4e, 0x61, 0xef, 0x76, 0x65, 0x74, 0xe9, 0x2e,             // "Naïveté."
+    ]);
+    const out = await ingest('notes.txt', cp1252);
+    const text = toPlainText(out.nodes);
+
+    assert.match(text, /caf\u00e9/, 'the accented characters must survive');
+    assert.match(text, /Na\u00efvet\u00e9/);
+    assert.ok(!text.includes('\uFFFD'), 'nothing may be replaced silently');
+
+    const codes = out.warningCodes.map((c) => c.code);
+    assert.ok(codes.includes('encoding_fallback'), `expected encoding_fallback, got ${codes.join(',')}`);
+    assert.ok(
+      out.warnings.some((w) => /UTF-8/.test(w)),
+      'the author is told in words, not only in a code they never see',
+    );
+  });
+
+  it('reads a normal UTF-8 manuscript without complaining', async () => {
+    const out = await ingest('notes.txt', Buffer.from('Mepa wo ky\u025bw.\n\nƆbaa no b\u0259.', 'utf8'));
+    assert.deepEqual(out.warningCodes.map((c) => c.code), [], 'no warning on a clean file');
+    assert.match(toPlainText(out.nodes), /ky\u025bw/, 'Twi characters survive untouched');
+  });
+
+  it('strips a UTF-8 byte order mark instead of leaving it in the text', async () => {
+    const withBom = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('Chapter one.', 'utf8')]);
+    const out = await ingest('notes.txt', withBom);
+    assert.ok(!toPlainText(out.nodes).includes('\uFEFF'), 'the BOM must not survive as a character');
+    assert.deepEqual(out.warningCodes.map((c) => c.code), [], 'a BOM is normal, not a warning');
+  });
+
+  it('reports characters that were already damaged before upload', async () => {
+    // Valid UTF-8 that already encodes U+FFFD: someone else's bad decode,
+    // baked in. Nothing here can recover it, but the author still has the
+    // original, so they are the one who needs telling.
+    const out = await ingest('notes.txt', Buffer.from('The caf\uFFFD was closed.', 'utf8'));
+    assert.ok(out.warningCodes.map((c) => c.code).includes('mojibake'));
+  });
+
   it('presses a messy Word document', async () => {
     const result = await press('messy', 'messy.docx', await fixtures.messyDocx());
     const epub = await openEpub(result.epub);
@@ -490,6 +617,57 @@ describe('signals for the publishing report', () => {
       manuscript: await fixtures.noHeadingsDocx(),
     });
     assert.equal(result.headingLevel, null);
+  });
+
+  /**
+   * The preview is the author looking at their own book before deciding to sell
+   * it, so the only thing that makes it worth showing is that it IS the book.
+   * An approximation that differs from the finished file is worse than nothing:
+   * it makes a promise about the artefact that the artefact does not keep.
+   */
+  it('previews the real edition, not a re-render of it', async () => {
+    const result = await convertManuscript({
+      ...BASE,
+      manuscriptFileName: 'novel.docx',
+      manuscript: await fixtures.novelDocx(),
+    });
+
+    assert.equal(result.preview.subarray(0, 5).toString('latin1'), '%PDF-');
+    const full = await PDFDocument.load(result.pdf);
+    const preview = await PDFDocument.load(result.preview);
+
+    assert.equal(result.pageCount, full.getPageCount(), 'pageCount describes the full edition');
+    assert.ok(result.pageCount > 0);
+    assert.equal(
+      preview.getPageCount(),
+      Math.min(PREVIEW_PAGES, full.getPageCount()),
+      'the preview is the opening pages, or the whole book when it is shorter',
+    );
+
+    // Same typesetting run means same paper. A separate render could quietly
+    // pick a different sheet size and nothing else would notice.
+    const [fw, fh] = [full.getPage(0).getWidth(), full.getPage(0).getHeight()];
+    const [pw, ph] = [preview.getPage(0).getWidth(), preview.getPage(0).getHeight()];
+    assert.equal(pw, fw, 'preview page width differs from the edition');
+    assert.equal(ph, fh, 'preview page height differs from the edition');
+
+    // And it is traceable: a preview can leave the building like any pressing.
+    assert.equal(preview.getKeywords().includes(result.provenance.fingerprint), true);
+    assert.match(preview.getTitle(), /preview/i, 'a preview must not present itself as the edition');
+  });
+
+  it('previews a book shorter than the preview length without failing', async () => {
+    // pageRanges 1-8 on a two-page book: Chromium clamps rather than erroring,
+    // and a short work must not break the press.
+    const result = await convertManuscript({
+      ...BASE,
+      manuscriptFileName: 'notes.txt',
+      manuscript: Buffer.from(fixtures.PLAIN_TEXT),
+    });
+    const full = await PDFDocument.load(result.pdf);
+    const preview = await PDFDocument.load(result.preview);
+    assert.ok(full.getPageCount() < PREVIEW_PAGES, 'fixture should be shorter than the preview');
+    assert.equal(preview.getPageCount(), full.getPageCount());
   });
 
   it('counts images kept and dropped', async () => {

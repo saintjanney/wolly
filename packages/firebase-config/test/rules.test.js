@@ -2,12 +2,19 @@
  * Proves the book rules deny what they claim to.
  *
  * Uses the Firebase Rules test API, which evaluates the real ruleset source
- * server-side, so no emulator is needed. It DOES need credentials, which is why
- * this is a deliberate check rather than part of `npm test`:
+ * server-side, so no emulator is needed. It needs credentials, so it is not
+ * part of `npm test`; instead the deploy workflow runs it with the deploy
+ * service account, against the ruleset it is about to publish, immediately
+ * before the fatal rules-deploy step.
  *
- *   npm --workspace @wolly/firebase-config run test:rules
+ * Locally:
  *
- * Run it whenever the `epubs` block in firestore.rules changes. The claims it
+ *   npm --workspace @wolly/firebase-config run test:rules -- "$(gcloud auth print-access-token)"
+ *
+ * It was a manual check for a while, which meant a rules change could reach
+ * production having been verified only by whoever remembered to run it. For the
+ * one step in the deploy that is fatal on purpose, that was the wrong way
+ * round. The claims it
  * covers are the ones the product rests on: a takedown an author can undo is
  * not a takedown, and a pressing record an author can forge cannot identify a
  * leak. Both are enforced by rules alone, because the Admin SDK bypasses rules
@@ -24,6 +31,17 @@ const { readFileSync } = require('node:fs');
 
 const { join } = require('node:path');
 
+/**
+ * Exit codes, because CI has to tell two different things apart.
+ *
+ *   0  the ruleset was evaluated and every expectation held
+ *   1  the ruleset was evaluated and an expectation DID NOT hold
+ *   2  the suite could not run at all (no token, or the API refused)
+ *
+ * Only 1 means the rules are wrong.
+ */
+const EXIT_COULD_NOT_RUN = 2;
+
 const TOKEN = process.argv[2] || process.env.GCLOUD_ACCESS_TOKEN;
 const PROJECT = process.env.FIREBASE_PROJECT || 'wolly-1133d';
 const RULES = readFileSync(join(__dirname, '..', 'firestore.rules'), 'utf8');
@@ -33,11 +51,21 @@ if (!TOKEN) {
     'No access token. Pass one as the first argument, or set GCLOUD_ACCESS_TOKEN:\n' +
       '  npm --workspace @wolly/firebase-config run test:rules -- "$(gcloud auth print-access-token)"',
   );
-  process.exit(2);
+  process.exit(EXIT_COULD_NOT_RUN);
 }
 
 const OWNER = 'author-uid';
 const DOC = `/databases/(default)/documents/epubs/book1`;
+
+/**
+ * Rules on a subcollection under `epubs` reach the parent book to establish
+ * ownership, so both `exists()` and `get()` on that path have to be mocked.
+ * Module-scoped because the rights, contracts and report blocks all need it.
+ */
+const bookOwnedBy = (uid) => [
+  { function: 'exists', args: [{ exact_value: DOC }], result: { value: true } },
+  { function: 'get', args: [{ exact_value: DOC }], result: { value: { data: { ownerUserId: uid } } } },
+];
 
 /** The book as it exists before the write. */
 const EXISTING = {
@@ -128,12 +156,7 @@ const cases = [
   // These need get()/exists() mocked, because the rule reaches the parent book
   // to establish ownership. `bookOwnedBy` builds that pair.
   ...(() => {
-    const BOOK = '/databases/(default)/documents/epubs/book1';
     const GRANT = '/databases/(default)/documents/epubs/book1/rights/g1';
-    const bookOwnedBy = (uid) => [
-      { function: 'exists', args: [{ exact_value: BOOK }], result: { value: true } },
-      { function: 'get', args: [{ exact_value: BOOK }], result: { value: { data: { ownerUserId: uid } } } },
-    ];
     const GRANT_DATA = {
       bookId: 'book1',
       ownerUserId: OWNER,
@@ -237,6 +260,205 @@ const cases = [
     },
   },
 
+  // MONEY. currentTermsFor() in services/payments prefers a book's own
+  // revenueTerms over the platform settings document when a checkout starts,
+  // so an author who can write this field sets their own share of every sale.
+  {
+    __name: 'author sets their own revenue share on their own book',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'update',
+      path: DOC,
+      time: '2026-09-09T00:00:00Z',
+      resource: {
+        data: { ...EXISTING, revenueTerms: { authorShare: 0.95, basis: 'gross' } },
+      },
+    },
+    resource: { data: EXISTING },
+  },
+  {
+    __name: 'staff set a revenue override on a book',
+    expectation: 'ALLOW',
+    request: {
+      auth: { uid: 'staff-uid', token: { sub: 'staff-uid' } },
+      method: 'update',
+      path: DOC,
+      time: '2026-09-09T00:00:00Z',
+      resource: {
+        data: { ...EXISTING, revenueTerms: { authorShare: 0.8, basis: 'gross' } },
+      },
+    },
+    resource: { data: EXISTING },
+    functionMocks: [
+      {
+        function: 'get',
+        args: [{ exact_value: '/databases/(default)/documents/users/staff-uid' }],
+        result: { value: { data: { isAdmin: true } } },
+      },
+    ],
+  },
+
+  // Ownership is not transferable by a client. The update rule authorises
+  // against the EXISTING owner, which is right, but nothing stopped the write
+  // from changing it, so an author could hand a live book and all its future
+  // sales to any uid they liked.
+  {
+    __name: 'author reassigns their book to someone else',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'update',
+      path: DOC,
+      time: '2026-09-09T00:00:00Z',
+      resource: { data: { ...EXISTING, ownerUserId: 'someone-else' } },
+    },
+    resource: { data: EXISTING },
+  },
+  {
+    __name: 'author edits their own book without touching ownership',
+    expectation: 'ALLOW',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'update',
+      path: DOC,
+      time: '2026-09-09T00:00:00Z',
+      resource: { data: { ...EXISTING, description: 'A new description.' } },
+    },
+    resource: { data: EXISTING },
+  },
+
+  // The publishing contract. Server-written only: it freezes the revenue share,
+  // so an author who could create one would set their own terms.
+  {
+    __name: 'author signs their own contract with terms they chose',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'create',
+      path: '/databases/(default)/documents/epubs/book1/contracts/c1',
+      time: '2026-09-09T00:00:00Z',
+      resource: {
+        data: { bookId: 'book1', authorUserId: OWNER, authorShare: 0.95, priceMinor: 5000, state: 'active' },
+      },
+    },
+    functionMocks: bookOwnedBy(OWNER),
+  },
+  {
+    __name: 'author reads their own contract',
+    expectation: 'ALLOW',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'get',
+      path: '/databases/(default)/documents/epubs/book1/contracts/c1',
+      time: '2026-09-09T00:00:00Z',
+    },
+    resource: {
+      data: { bookId: 'book1', authorUserId: OWNER, authorShare: 0.7, priceMinor: 5000, state: 'active' },
+    },
+    functionMocks: bookOwnedBy(OWNER),
+  },
+  {
+    __name: 'a stranger reads a contract',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: 'nosy', token: { sub: 'nosy' } },
+      method: 'get',
+      path: '/databases/(default)/documents/epubs/book1/contracts/c1',
+      time: '2026-09-09T00:00:00Z',
+    },
+    resource: {
+      data: { bookId: 'book1', authorUserId: OWNER, authorShare: 0.7, priceMinor: 5000, state: 'active' },
+    },
+    functionMocks: bookOwnedBy(OWNER),
+  },
+  {
+    __name: 'author ends a contract by deleting it',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'delete',
+      path: '/databases/(default)/documents/epubs/book1/contracts/c1',
+      time: '2026-09-09T00:00:00Z',
+    },
+    resource: {
+      data: { bookId: 'book1', authorUserId: OWNER, authorShare: 0.7, state: 'active' },
+    },
+    functionMocks: bookOwnedBy(OWNER),
+  },
+  {
+    __name: 'author puts their own book into the publish flow',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'update',
+      path: DOC,
+      time: '2026-09-09T00:00:00Z',
+      resource: { data: { ...EXISTING, activeContractId: 'c1' } },
+    },
+    resource: { data: EXISTING },
+  },
+
+  // The payout screen LISTS an author's own sales. Rules are not filters: an
+  // equality filter on the field the rule checks is what makes the query
+  // provable, and the reader Library was once silently empty for exactly this
+  // reason (an unfiltered epubs query, denied by rules, swallowed as an error).
+  {
+    __name: 'author lists their own sales, filtered by authorUserId',
+    expectation: 'ALLOW',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'list',
+      path: '/databases/(default)/documents/transactions/t1',
+      time: '2026-09-02T00:00:00Z',
+      query: { limit: 100 },
+    },
+    resource: {
+      data: { buyerUserId: 'a-reader', authorUserId: OWNER, grossMinor: 1500 },
+    },
+  },
+  {
+    __name: 'a stranger lists sales they do not own',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: 'nosy', token: { sub: 'nosy' } },
+      method: 'list',
+      path: '/databases/(default)/documents/transactions/t1',
+      time: '2026-09-02T00:00:00Z',
+      query: { limit: 100 },
+    },
+    resource: {
+      data: { buyerUserId: 'a-reader', authorUserId: OWNER, grossMinor: 1500 },
+    },
+  },
+
+  // Platform settings: the revenue share staff edit. Readable by an author,
+  // because terms nobody can read are not terms; writable by staff only,
+  // because this decides what the next author to publish is offered.
+  {
+    __name: 'an author reads the revenue terms',
+    expectation: 'ALLOW',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'get',
+      path: '/databases/(default)/documents/platform_settings/revenue',
+      time: '2026-09-02T00:00:00Z',
+    },
+    resource: { data: { authorShare: 0.7, basis: 'gross' } },
+  },
+  {
+    __name: 'an author sets their own revenue share to 100%',
+    expectation: 'DENY',
+    request: {
+      auth: { uid: OWNER, token: { sub: OWNER } },
+      method: 'update',
+      path: '/databases/(default)/documents/platform_settings/revenue',
+      time: '2026-09-02T00:00:00Z',
+      resource: { data: { authorShare: 1, basis: 'gross' } },
+    },
+    resource: { data: { authorShare: 0.7, basis: 'gross' } },
+  },
+
   // Payouts: money owed. An author could previously invent one for themselves.
   {
     __name: 'author invents a payout for themselves',
@@ -272,9 +494,24 @@ async function main() {
 
   const body = await res.json();
   if (!res.ok) {
-    console.error(`HTTP ${res.status}`);
+    // COULD NOT RUN is not the same as FAILED, and the exit code has to say
+    // which. A caller that cannot reach the Rules API has learned nothing about
+    // the ruleset; a caller whose expectations came back wrong has learned that
+    // the rules are broken. Collapsing both into 1 means CI must either block
+    // every deploy on a credential problem or ignore genuine rule failures.
+    console.error(`HTTP ${res.status} - could not evaluate the ruleset.`);
     console.error(JSON.stringify(body, null, 2).slice(0, 1500));
-    process.exit(1);
+    if (res.status === 403) {
+      console.error(
+        '\nThe caller needs BOTH of these on this project:\n' +
+          '  roles/firebaserules.admin              compile and test the ruleset\n' +
+          '  roles/serviceusage.serviceUsageConsumer  use the project for quota\n' +
+          'A service account needs the second one explicitly; a user account\n' +
+          'usually has it through its own quota project, which is why this can\n' +
+          'pass locally and fail in CI.',
+      );
+    }
+    process.exit(EXIT_COULD_NOT_RUN);
   }
 
   if (body.issues?.length) {
@@ -300,6 +537,8 @@ async function main() {
 }
 
 main().catch((e) => {
+  // A thrown error is a harness problem (network, DNS, a bad JSON body), not a
+  // verdict on the rules.
   console.error(e);
-  process.exit(1);
+  process.exit(EXIT_COULD_NOT_RUN);
 });

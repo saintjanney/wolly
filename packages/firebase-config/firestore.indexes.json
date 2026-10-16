@@ -609,6 +609,21 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "_query": "purchases where status, orderBy launchedAt - reconcilePendingPurchases in services/payments",
+      "collectionGroup": "purchases",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "launchedAt",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

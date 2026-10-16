@@ -66,6 +66,9 @@ function completeInput() {
       price: 15,
       isFree: false,
       isPublished: false,
+      // "Everything done" now includes having agreed to sell: the listing
+      // checks only apply once an author has entered the publish flow.
+      hasContract: true,
       previewChapters: [1],
       conversionStatus: 'ready',
       conversion: {
@@ -95,6 +98,24 @@ function completeInput() {
 }
 
 // ── 1. Determinism ─────────────────────────────────────────────────────────
+
+/**
+ * The score a book gets when the author has finished everything and Wolly has
+ * not started: the author-owned share of whatever weight still applies.
+ *
+ * Pass ids this particular book takes out of the denominator (a free book has
+ * no payout work). Checks in AWAITING_WOLLY_TO_BUILD are always excluded,
+ * because nothing on the platform can satisfy them.
+ */
+function expectedScore(notApplicable = []) {
+  const excluded = new Set([...E.AWAITING_WOLLY_TO_BUILD, ...notApplicable]);
+  const applicable = E.CHECK_IDS.filter((id) => !excluded.has(id));
+  const total = applicable.reduce((sum, id) => sum + E.CHECKS[id].weight, 0);
+  const authorOwned = applicable
+    .filter((id) => E.CHECKS[id].owner === 'author')
+    .reduce((sum, id) => sum + E.CHECKS[id].weight, 0);
+  return Math.round((100 * authorOwned) / total);
+}
 
 test('same inputs produce the same score, every time', () => {
   const input = completeInput();
@@ -167,8 +188,13 @@ test('making a book free changes the denominator, and that is not a punishment',
   freeInput.book.isFree = true;
   const free = E.computeReport(freeInput, { now: NOW });
 
-  assert.equal(paid.score, 90);
-  assert.equal(free.score, 89);
+  // Derived from the weights rather than hardcoded, so this keeps asserting the
+  // MECHANISM when the set of applicable checks changes (it changed when the
+  // checks with no writer left the denominator). A magic number here has to be
+  // re-typed by hand every time, which is how it stops being a check.
+  assert.equal(paid.score, expectedScore());
+  assert.equal(free.score, expectedScore(['payout_destination']));
+  assert.ok(free.score < paid.score, "a smaller denominator raises Wolly's share");
   assert.equal(
     free.checks.find((c) => c.id === 'payout_destination').state,
     'not_applicable',
@@ -226,12 +252,13 @@ test('an unpressed manuscript makes its dependents not-applicable', () => {
 // ── 4. No free points ──────────────────────────────────────────────────────
 
 test('not-applicable checks leave the denominator entirely', () => {
-  // A book with everything done EXCEPT that Wolly has not reviewed it should
-  // land at exactly 90: the two Wolly checks are worth 10 of the 100.
+  // A book with everything done EXCEPT that Wolly has not reviewed it scores
+  // exactly the author's share of the applicable weight. The two Wolly checks
+  // are the only thing outstanding, so the whole remainder is theirs.
   const report = E.computeReport(completeInput(), { now: NOW });
-  assert.equal(report.score, 90, 'an author who has done everything should reach exactly 90');
+  assert.equal(report.score, expectedScore(), 'an author who has done everything holds nothing back');
   assert.equal(report.pointsWithAuthor, 0);
-  assert.equal(report.pointsWithWolly, 10);
+  assert.equal(report.pointsWithWolly, 100 - report.score);
 });
 
 test('a fully reviewed book reaches 100', () => {
@@ -332,6 +359,375 @@ test('a short work is never told it is too short', () => {
   const structure = report.checks.find((c) => c.id === 'chapter_structure');
   assert.ok(volume.credit >= 0.6, 'a chapbook must not be penalised for being short');
   assert.ok(structure.credit >= 0.6, 'a short piece is allowed to be one continuous piece');
+});
+
+/**
+ * The author who bolded their chapter titles instead of styling them.
+ *
+ * This is the commonest real defect in a Word manuscript, and the report was
+ * silent about it twice over: the press never emitted the count, and the
+ * evaluator consulted it AFTER the `headingLevel === null` branch returned,
+ * which is the only situation where it means anything. Both halves are pinned
+ * here because either one alone brings the silence back.
+ */
+test('a manuscript with unmarked chapter titles is told exactly that', () => {
+  const long = completeInput();
+  long.book.conversion.headingLevel = null;
+  long.book.conversion.wordCount = 40000;
+  long.book.conversion.headingShapedParagraphs = 12;
+  const structure = (i) => E.computeReport(i, { now: NOW }).checks.find((c) => c.id === 'chapter_structure');
+
+  const named = structure(long);
+  assert.match(named.headline, /12 lines look like chapter titles/);
+  assert.match(named.detail, /Heading 1/, 'name the fix, not just the fault');
+
+  // Same book, signal absent: the old generic wording, and the SAME credit.
+  const blind = structure({ ...long, book: { ...long.book, conversion: { ...long.book.conversion, headingShapedParagraphs: undefined } } });
+  assert.match(blind.headline, /Mark your chapter titles/);
+  assert.equal(named.credit, blind.credit, 'the count changes the words, never the score');
+});
+
+test('a short piece with unmarked titles keeps its credit and gains the hint', () => {
+  const short = completeInput();
+  short.book.conversion.headingLevel = null;
+  short.book.conversion.wordCount = 900;
+  short.book.conversion.headingShapedParagraphs = 4;
+  const c = E.computeReport(short, { now: NOW }).checks.find((x) => x.id === 'chapter_structure');
+  assert.equal(c.credit, 0.6, 'a short work is still allowed to be one piece');
+  assert.match(c.headline, /4 lines look like chapter titles/);
+});
+
+test('a properly marked manuscript is never nagged about headings', () => {
+  const ok = completeInput();
+  ok.book.conversion.headingLevel = 'h1';
+  ok.book.conversion.headingShapedParagraphs = 0;
+  const c = E.computeReport(ok, { now: NOW }).checks.find((x) => x.id === 'chapter_structure');
+  assert.equal(c.credit, 1);
+  assert.doesNotMatch(c.headline, /look like chapter titles/);
+});
+
+/**
+ * Invariant 4, "NO FREE POINTS", applied to the cover.
+ *
+ * cover_quality returned FULL credit whenever it had no dimensions to look at.
+ * The press only measures a cover it can fetch from Storage, so an externally
+ * hosted cover was never measured and collected six points for a check that
+ * could not run. It scored better than a measured mediocre cover.
+ */
+test('an unmeasured cover leaves the denominator instead of taking free points', () => {
+  const input = completeInput();
+  delete input.book.coverMetrics;
+  const c = E.computeReport(input, { now: NOW }).checks.find((x) => x.id === 'cover_quality');
+  assert.equal(c.state, 'not_applicable', 'a check that could not run must not be scored');
+  assert.equal(c.credit, 0);
+  assert.equal(c.pointsAtStake, 0, 'and it must not be shown as points the author can win back');
+});
+
+test('an unmeasurable cover never outscores a measured poor one', () => {
+  const unmeasured = completeInput();
+  delete unmeasured.book.coverMetrics;
+  const poor = completeInput();
+  poor.book.coverMetrics = { width: 400, height: 600, bytes: 20000, fetchedOk: true };
+
+  const scoreOf = (i) => E.computeReport(i, { now: NOW }).score;
+  assert.ok(
+    scoreOf(unmeasured) >= scoreOf(poor),
+    'leaving the denominator is expected to read higher than scoring badly; what must not happen is CREDIT for the unmeasured one',
+  );
+  const c = E.computeReport(unmeasured, { now: NOW }).checks.find((x) => x.id === 'cover_quality');
+  assert.notEqual(c.credit, 1, 'the bug was awarding credit 1 here');
+});
+
+/**
+ * A cover the press could not fetch is charged exactly once, by cover_present.
+ * cover_quality depends on it, so invariant 3 excludes this check rather than
+ * charging a second time.
+ */
+test('a cover Wolly could not open is charged once, at cover_present', () => {
+  const input = completeInput();
+  input.book.coverMetrics = { fetchedOk: false };
+  const report = E.computeReport(input, { now: NOW });
+  assert.equal(report.checks.find((c) => c.id === 'cover_present').credit, 0);
+  assert.equal(report.checks.find((c) => c.id === 'cover_quality').state, 'not_applicable');
+});
+
+/**
+ * Invariant 3, "SINGLE CAUSE, SINGLE COST", applied to warnings.
+ *
+ * `image_dropped` was in AUTHOR_ACTIONABLE and also scored by images_intact, so
+ * one dropped image quietly cost points in two checks. Same for a failed cover
+ * fetch, which cover_quality now owns.
+ */
+test('one dropped image costs points once, not twice', () => {
+  const input = completeInput();
+  input.book.conversion.imageCount = 9;
+  input.book.conversion.droppedImageCount = 1;
+  input.book.conversion.warningCodes = [{ code: 'image_dropped', count: 1 }];
+
+  const report = E.computeReport(input, { now: NOW });
+  const images = report.checks.find((c) => c.id === 'images_intact');
+  const clean = report.checks.find((c) => c.id === 'clean_conversion');
+
+  assert.ok(images.credit < 1, 'images_intact is the check that owns dropped images');
+  assert.equal(clean.credit, 1, 'clean_conversion must not charge for it a second time');
+});
+
+test('a failed cover fetch costs points once, not twice', () => {
+  const input = completeInput();
+  input.book.coverMetrics = { fetchedOk: false };
+  input.book.conversion.warningCodes = [{ code: 'cover_fetch_failed', count: 1 }];
+  const report = E.computeReport(input, { now: NOW });
+  assert.equal(report.checks.find((c) => c.id === 'cover_quality').credit, 0);
+  assert.equal(report.checks.find((c) => c.id === 'clean_conversion').credit, 1);
+});
+
+test('engine noise never reaches the author or the score', () => {
+  const input = completeInput();
+  input.book.conversion.warningCodes = [{ code: 'engine_note', count: 14 }];
+  const clean = E.computeReport(input, { now: NOW }).checks.find((c) => c.id === 'clean_conversion');
+  assert.equal(clean.credit, 1, 'a Word style name is not the author\'s problem');
+  assert.deepEqual(clean.evidence.codes, []);
+});
+
+/**
+ * What clean_conversion is actually for now: did the author's characters
+ * survive? On this platform that is the check that matters most, because the
+ * marked letters of Twi, Ewe, Ga and Dagbani are distinct letters rather than
+ * decorated Latin ones, so losing them changes words.
+ */
+test('a manuscript saved in the wrong encoding is told so, in those words', () => {
+  const input = completeInput();
+  input.book.conversion.warningCodes = [{ code: 'encoding_fallback', count: 1 }];
+  const c = E.computeReport(input, { now: NOW }).checks.find((x) => x.id === 'clean_conversion');
+  assert.ok(c.credit < 1 && c.credit > 0);
+  assert.match(c.detail, /UTF-8/);
+});
+
+test('characters already damaged before upload are scored worse than a guess', () => {
+  const guess = completeInput();
+  guess.book.conversion.warningCodes = [{ code: 'encoding_fallback', count: 1 }];
+  const broken = completeInput();
+  broken.book.conversion.warningCodes = [{ code: 'mojibake', count: 1 }];
+
+  const creditOf = (i) => E.computeReport(i, { now: NOW }).checks.find((c) => c.id === 'clean_conversion').credit;
+  assert.ok(creditOf(broken) < creditOf(guess), 'lost characters are worse than a recoverable guess');
+});
+
+/**
+ * The score and the publish button must never disagree.
+ *
+ * blockingFailures() filtered on `state !== 'pass'`, so a not-applicable check
+ * counted as a failure. The sharpest case is the one the file header uses to
+ * explain invariant 2: a free book has no payout work, so payout_destination
+ * correctly leaves the denominator, and the book then read 100%,
+ * "ready to publish", and could not be published.
+ */
+test('a free book that is otherwise finished can actually be published', () => {
+  const input = completeInput();
+  input.book.isFree = true;
+  input.book.price = 0;
+  const report = E.computeReport(input, { now: NOW });
+
+  const payout = report.checks.find((c) => c.id === 'payout_destination');
+  assert.equal(payout.state, 'not_applicable', 'a free book has no payout work');
+
+  const blockers = E.blockingFailures(report).map((b) => b.id);
+  assert.ok(
+    !blockers.includes('payout_destination'),
+    `a check that does not apply must not block, got: ${blockers.join(', ')}`,
+  );
+
+  // With Wolly's own review done too, nothing at all is left in the way.
+  const reviewed = E.computeReport(
+    { ...input, review: { editionReviewedAt: NOW, editionFindings: [], listingApprovedAt: NOW } },
+    { now: NOW },
+  );
+  assert.deepEqual(E.blockingFailures(reviewed).map((b) => b.id), []);
+  assert.equal(reviewed.band, 'ready_to_publish');
+});
+
+test('the band and the pre-flight always agree', () => {
+  // If the screen says ready to publish, the button must publish.
+  for (const free of [true, false]) {
+    const input = completeInput();
+    input.book.isFree = free;
+    if (free) input.book.price = 0;
+    const report = E.computeReport(
+      { ...input, review: { editionReviewedAt: NOW, editionFindings: [], listingApprovedAt: NOW } },
+      { now: NOW },
+    );
+    if (report.band === 'ready_to_publish') {
+      assert.equal(
+        E.blockingFailures(report).length, 0,
+        `band says ready_to_publish but the pre-flight blocks (isFree=${free})`,
+      );
+    }
+  }
+});
+
+test('an unpressed book is blocked by the press, not by everything behind it', () => {
+  // Invariant 3 applied to the gate: one missing thing is reported once.
+  const input = emptyInput();
+  const blockers = E.blockingFailures(E.computeReport(input, { now: NOW }));
+  assert.ok(blockers.some((b) => b.id === 'manuscript_pressed'), 'the real cause must block');
+  assert.ok(
+    !blockers.some((b) => b.id === 'glyph_coverage'),
+    'a check waiting on the press must not also be reported as a blocker',
+  );
+});
+
+/**
+ * The check that would have caught the worst bug in this file.
+ *
+ * rights_declared is `blocking: true`, and nothing on the platform writes a
+ * RightsGrant. The publish pre-flight is exactly the blocking subset, so the
+ * pre-flight refused EVERY book: a fully finished, priced, pressed,
+ * staff-approved book scored 93, banded ready_for_review, and could not be
+ * published, with nothing anyone could do about it.
+ */
+test('no blocking check is impossible to satisfy', () => {
+  for (const id of E.AWAITING_WOLLY_TO_BUILD) {
+    const report = E.computeReport(completeInput(), { now: NOW });
+    const check = report.checks.find((c) => c.id === id);
+    assert.equal(
+      check.state, 'not_applicable',
+      `${id} has no writer on the platform, so it must not be scored`,
+    );
+    assert.ok(
+      !E.blockingFailures(report).some((b) => b.id === id),
+      `${id} would block every book on the platform forever`,
+    );
+  }
+});
+
+test('recording who holds the rights is what clears the rights check', () => {
+  // The rights flow is the writer this check was waiting for, and a one-tap
+  // "I hold everything myself" is a single grant, so the six points are
+  // winnable and the blocking check is clearable.
+  const withoutRights = completeInput();
+  withoutRights.rights = [];
+  withoutRights.review = { editionReviewedAt: NOW, listingApprovedAt: NOW, editionFindings: [] };
+
+  const blocked = E.computeReport(withoutRights, { now: NOW });
+  assert.ok(
+    E.blockingFailures(blocked).some((b) => b.id === 'rights_declared'),
+    'a book nobody has claimed the rights to must not go on sale',
+  );
+
+  const cleared = E.computeReport(
+    { ...withoutRights, rights: [{ verificationState: 'unverified' }] },
+    { now: NOW },
+  );
+  assert.deepEqual(E.blockingFailures(cleared).map((b) => b.id), []);
+  assert.ok(cleared.score > blocked.score, 'and recording it is worth points');
+});
+
+test('a finished book can always reach the top band', () => {
+  // Whatever the applicable set is, an author who has done everything and a
+  // Wolly that has reviewed it must be able to publish. If this fails, some
+  // check has become unsatisfiable and the product has no working publish path.
+  const input = completeInput();
+  input.review = { editionReviewedAt: NOW, listingApprovedAt: NOW, editionFindings: [] };
+  input.book.previewChapters = null;
+  const report = E.computeReport(input, { now: NOW });
+  assert.equal(report.score, 100, 'the top of the scale must be reachable in the real world');
+  assert.equal(report.band, 'ready_to_publish');
+  assert.deepEqual(E.blockingFailures(report).map((b) => b.id), []);
+});
+
+test('a not-applicable check shows the author no instruction', () => {
+  // It used to render "Tell us which rights you hold" with no form to do it in.
+  const report = E.computeReport(completeInput(), { now: NOW });
+  for (const c of report.checks.filter((x) => x.state === 'not_applicable')) {
+    assert.equal(c.headline, '', `${c.id} tells the author to do something that does not apply`);
+    assert.equal(c.pointsAtStake, 0);
+  }
+});
+
+/**
+ * Uploading a title and selling it are separate acts, so a draft must not be
+ * scored against a price nobody has asked it for. Before the scope split, a
+ * finished manuscript with no price read as unfinished work, and the next step
+ * it offered was to go and price a book its author had not decided to sell.
+ */
+test('a title is not scored against the price it was never asked for', () => {
+  const draft = completeInput();
+  draft.book.hasContract = false;
+  draft.book.price = null;
+  draft.book.isFree = null;
+  draft.author.payoutMethod = null;
+  draft.author.payoutAccountRef = null;
+
+  const report = E.computeReport(draft, { now: NOW });
+  assert.equal(report.scope, 'title', 'a book with no contract is a title');
+
+  for (const id of E.LISTING_SCOPE_CHECKS) {
+    const check = report.checks.find((c) => c.id === id);
+    assert.equal(check.state, 'not_applicable', `${id} belongs to the publish flow`);
+    assert.equal(check.pointsAtStake, 0, `${id} must not be shown as points to win back`);
+  }
+
+  assert.equal(report.score, 100, 'a finished title is finished, whatever it has not been priced at');
+  assert.deepEqual(report.nextSteps, [], 'and it must not send the author to price it');
+});
+
+test('agreeing to sell is what adds the listing checks', () => {
+  const before = completeInput();
+  before.book.hasContract = false;
+  before.book.price = null;
+  before.author.payoutMethod = null;
+  before.author.payoutAccountRef = null;
+
+  const after = { ...before, book: { ...before.book, hasContract: true } };
+
+  assert.equal(E.computeReport(before, { now: NOW }).scope, 'title');
+  assert.equal(E.computeReport(after, { now: NOW }).scope, 'listing');
+
+  const listing = E.computeReport(after, { now: NOW });
+  assert.ok(
+    listing.checks.find((c) => c.id === 'price_set').state === 'attention',
+    'once they have agreed to sell, the price is real work',
+  );
+  assert.ok(
+    E.blockingFailures(listing).some((b) => b.id === 'price_set'),
+    'and it blocks publishing until it is done',
+  );
+});
+
+test('a published book is always scored in listing scope', () => {
+  // Belt and braces: a live book missing a contract record (a legacy import,
+  // say) must not slip back to title scope and report itself finished.
+  const live = completeInput();
+  live.book.hasContract = false;
+  live.book.isPublished = true;
+  assert.equal(E.computeReport(live, { now: NOW }).scope, 'listing');
+});
+
+test('the scope is one engine, not two', () => {
+  // A listing report is a title report plus four checks. If the two ever
+  // diverged, the progress screen and the publish pre-flight would disagree
+  // about what a book still needs, which is the thing this design exists to
+  // prevent.
+  const input = completeInput();
+  const title = E.computeReport(input, { now: NOW, scope: 'title' });
+  const listing = E.computeReport(input, { now: NOW, scope: 'listing' });
+
+  const applicable = (r) => new Set(r.checks.filter((c) => c.state !== 'not_applicable').map((c) => c.id));
+  const extra = [...applicable(listing)].filter((id) => !applicable(title).has(id));
+  assert.deepEqual(new Set(extra), E.LISTING_SCOPE_CHECKS);
+
+  // And every check they share reaches the same verdict from the same inputs.
+  for (const c of title.checks.filter((x) => x.state !== 'not_applicable')) {
+    const other = listing.checks.find((x) => x.id === c.id);
+    assert.equal(other.credit, c.credit, `${c.id} scored differently in the two scopes`);
+    assert.equal(other.headline, c.headline, `${c.id} says something different in the two scopes`);
+  }
+});
+
+test('rights are not a publish-flow concern', () => {
+  // Recording who holds what is its own flow, done whether or not Wolly ever
+  // lists the book, so it must not be scoped away with the commerce checks.
+  assert.ok(!E.LISTING_SCOPE_CHECKS.has('rights_declared'));
 });
 
 test('rights never claim verification Wolly has not performed', () => {

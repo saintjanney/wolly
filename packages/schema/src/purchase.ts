@@ -39,16 +39,56 @@ export interface Purchase {
   countryCode?: string;
 
   /**
-   * Only `completed` means paid. Absent on documents written before
-   * verification existed; treat absent as NOT paid.
+   * WOLLY'S lifecycle, not the payment provider's. Only `completed` means paid;
+   * absent on documents written before verification existed and treated as NOT
+   * paid.
+   *
+   * It leaves `pending` only for something terminal. A reader who is midway
+   * through paying stays `pending`, because `pending` is the set anything
+   * reconciling unfinished sales looks at, and a sale that is still live must
+   * stay in it. The provider's own status goes in `providerStatus`.
    */
   status?: PurchaseStatus;
   /** When checkout was started. Not evidence of payment. */
   launchedAt?: FirestoreTimestamp;
+  /**
+   * Paystack's OWN transaction status, kept separate from `status` on purpose.
+   *
+   * `status` above is Wolly's purchase lifecycle. This is the provider's, and
+   * the two are not the same vocabulary: Paystack reports `ongoing` while a
+   * reader is still entering a mobile-money OTP, and `abandoned` when they walk
+   * away from checkout. Writing those onto `status` used to be exactly what
+   * happened, which had two consequences. It produced documents carrying values
+   * `PurchaseStatus` does not contain, and worse, it moved a live sale out of
+   * `pending` while the reader was still paying, so anything looking for
+   * unfinished purchases would never find it again. Checking on a purchase
+   * could quietly remove it from the only thing that could complete it.
+   */
+  providerStatus?: string;
   /** Paystack's `gateway_response`, kept for support and dispute handling. */
   gatewayResponse?: string;
   /** Paystack channel, e.g. card, mobile_money, bank. */
   channel?: string;
+
+  /**
+   * The revenue terms FROZEN when checkout began, written by the payments
+   * function and never by a client.
+   *
+   * The reader commits to a price at that moment, so the terms in force at that
+   * moment are the ones that apply. Staff changing what Wolly offers must not
+   * rewrite a sale already under way. See revenue.ts.
+   */
+  authorShare?: number;
+  revenueBasis?: 'gross' | 'net';
+  /**
+   * @deprecated Superseded by `authorShare` + `revenueBasis`.
+   *
+   * Carried by purchases begun before the terms became configurable. Those were
+   * all shares of gross, and `termsFromPurchase()` reads them as such, so a
+   * checkout started before the change and verified after it still pays what it
+   * promised.
+   */
+  royaltyRate?: number;
 
   /** Set when Paystack confirms the payment. */
   purchasedAt?: FirestoreTimestamp;

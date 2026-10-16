@@ -132,7 +132,23 @@ export async function ingest(
     return finish(sanitizeHtml(result.value), 'docx');
   }
 
-  const text = data.toString('utf8');
+  const decoded = decodeText(data);
+  const text = decoded.text;
+  if (decoded.usedFallback) {
+    note('encoding_fallback');
+    warnings.push(
+      'This file was not saved as UTF-8, so Wolly read it as Windows text. ' +
+      'Check any accented or Ghanaian-language characters in the finished book. ' +
+      'Re-saving the file as UTF-8 removes the guesswork.',
+    );
+  }
+  if (decoded.hasReplacementChars) {
+    note('mojibake');
+    warnings.push(
+      'Some characters in this file were already damaged before it reached Wolly ' +
+      'and show as \u2026 marks. Only the original file can fix them.',
+    );
+  }
 
   if (kind === 'markdown') {
     const html = await marked.parse(text, { async: true });
@@ -163,6 +179,46 @@ export async function ingest(
       droppedImageCount,
     };
   }
+}
+
+/**
+ * Decodes a manuscript's bytes, and says so when it could not do it cleanly.
+ *
+ * `data.toString('utf8')` substitutes U+FFFD for every byte it cannot read and
+ * reports nothing, so a .txt saved as Windows-1252 (what an older Notepad
+ * writes, and what a great deal of text prepared on second-hand machines still
+ * is) lost every non-ASCII character in silence.
+ *
+ * On this platform that is not a cosmetic loss. E, O and N with their marks are
+ * different letters in Twi, Ewe, Ga and Dagbani, not decorated versions of
+ * Latin ones, so a silent substitution changes words rather than blurring them.
+ * The author received a book full of replacement characters and a report that
+ * said the manuscript converted cleanly.
+ *
+ * Windows-1252 is the fallback because it maps all 256 bytes and therefore
+ * cannot itself fail, and because it is overwhelmingly what produced the file.
+ * A guess that is recorded and shown to the author beats a silent loss.
+ */
+export function decodeText(data: Buffer): {
+  text: string;
+  usedFallback: boolean;
+  hasReplacementChars: boolean;
+} {
+  let text: string;
+  let usedFallback = false;
+  try {
+    // `fatal` is the whole point: it throws instead of quietly substituting.
+    // TextDecoder also strips a UTF-8 BOM, which toString('utf8') left behind
+    // as a stray character at the top of every Windows-saved file.
+    text = new TextDecoder('utf-8', { fatal: true }).decode(data);
+  } catch {
+    usedFallback = true;
+    text = new TextDecoder('windows-1252').decode(data);
+  }
+  // Valid UTF-8 that already carries replacement characters was corrupted
+  // before it reached us. Nothing here can recover it, but the author is the
+  // only person who still has the original, so they are the one to tell.
+  return { text, usedFallback, hasReplacementChars: text.includes('\uFFFD') };
 }
 
 /**

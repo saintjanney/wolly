@@ -54,6 +54,20 @@ service cloud.firestore {
     }
 
     /**
+     * Ownership is not transferable by the client.
+     *
+     * The update rule authorises against the EXISTING `ownerUserId`, which is
+     * correct, but nothing stopped the write from changing it: an author could
+     * hand a live book, and every future sale of it, to any uid they liked, and
+     * `publishedImpliesOwned()` only ever checked that the new value was a
+     * non-empty string. Transfers are a staff action; the `isAdmin()` clause is
+     * not gated on this.
+     */
+    function ownerUnchanged() {
+      return request.resource.data.ownerUserId == resource.data.ownerUserId;
+    }
+
+    /**
      * Book fields only the server may write.
      *
      * `rightsStatus` is the one that matters most: it is what a takedown sets,
@@ -69,10 +83,26 @@ service cloud.firestore {
         'conversionError',
         'epubUrl',
         'pdfUrl',
+        // The press preview and the measured page count. `previewPath` is a
+        // Storage object path the preview callable dereferences, so an author
+        // who could write it would aim that callable at any object in the
+        // bucket.
+        'previewPath',
+        'pageCount',
+        // CONSENT. Its presence is what puts a book into the publish flow, so
+        // an author who could write it would be listed as having agreed to a
+        // contract they never saw.
+        'activeContractId',
         'coverMetrics',
         'rightsStatus',
         'rightsNote',
-        'rightsUpdatedAt'
+        'rightsUpdatedAt',
+        // MONEY. `currentTermsFor()` in services/payments prefers a book's own
+        // `revenueTerms` over the platform settings document when a checkout
+        // starts, so an author who could write this field would set their own
+        // share of every sale of their book. Staff set it through the
+        // `isAdmin()` update clause, which does not consult this list.
+        'revenueTerms'
       ];
     }
 
@@ -101,6 +131,15 @@ service cloud.firestore {
      * own claim checked, which is exactly what RIGHTS.md says Wolly must never
      * imply. Kept flat rather than nested because affectedKeys() enumerates
      * top-level keys only, so a nested map cannot be protected field by field.
+     */
+    /**
+     * Rights fields only Wolly may write.
+     *
+     * `evidenceRef` is deliberately NOT here. Attaching the agreement is the
+     * author answering the question; deciding whether it says what they claim is
+     * Wolly's job, and that is `verificationState`, which they cannot touch.
+     * Separating the two is what lets Wolly stop asking without ever implying it
+     * has checked anything.
      */
     function serverOwnedRightsFields() {
       return [
@@ -149,6 +188,25 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    /**
+     * Platform-wide settings staff edit in the backoffice.
+     *
+     * `revenue` holds the revenue share Wolly currently offers an author:
+     * `{ authorShare, basis }`. READABLE by any signed-in user, because the
+     * publish flow has to show an author the terms before they agree to them,
+     * and terms nobody can read are not terms.
+     *
+     * WRITABLE BY STAFF ONLY, and the reason is money: this document decides
+     * what the next author to publish is offered. It is never read when a sale
+     * is verified or paid out, because every purchase and every publishing
+     * contract freezes the terms that applied to it, so changing this cannot
+     * rewrite what someone has already earned or already signed.
+     */
+    match /platform_settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
     match /genres/{genreId} {
       allow read: if isAuthenticated();
       // Written by the backoffice genre manager, and by seed scripts via the
@@ -178,6 +236,7 @@ service cloud.firestore {
             || request.resource.data.conversionStatus == 'requested');
       allow update: if isAuthenticated()
         && isOwner(resource.data.ownerUserId)
+        && ownerUnchanged()
         && publishedImpliesOwned()
         && !writesServerOwnedBookFields()
         && conversionStatusIsRequestOnly();
@@ -267,6 +326,29 @@ service cloud.firestore {
     match /payouts/{payoutId} {
       allow read: if isAuthenticated() && isOwner(resource.data.userId);
       allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * Publishing contracts: what an author agreed with Wolly, and when.
+     *
+     * SERVER-WRITTEN ONLY. `signPublishingContract` is the sole writer, because
+     * the document freezes the revenue share and an author who could create one
+     * would set their own. That is not hypothetical: the same defect reached
+     * production once through `epubs.revenueTerms`.
+     *
+     * Never deleted, and never edited. Changing a price means signing a new
+     * contract and ending the old one, so the record of what was agreed
+     * survives the agreement.
+     */
+    match /epubs/{bookId}/contracts/{contractId} {
+      function contractBookOwner() {
+        return isAuthenticated()
+          && exists(/databases/$(database)/documents/epubs/$(bookId))
+          && get(/databases/$(database)/documents/epubs/$(bookId)).data.ownerUserId == request.auth.uid;
+      }
+
+      allow read: if contractBookOwner() || isAdmin();
       allow create, update, delete: if false;
     }
 

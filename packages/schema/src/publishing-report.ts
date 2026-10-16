@@ -39,6 +39,7 @@
  */
 
 import type { CoverMetrics } from './epub';
+import type { RightsVerificationState } from './rights';
 
 /** Bump when weights or thresholds change. See `changeReason: 'engine_update'`. */
 export const ENGINE_VERSION = 1;
@@ -168,6 +169,69 @@ export function unsafeGates(): Array<{ prerequisite: CheckId; gates: CheckId[]; 
  */
 export const EXEMPT_GATE: CheckId = 'manuscript_pressed';
 
+/**
+ * Checks whose input NOTHING on the platform writes yet.
+ *
+ * Scoring a check the author has no way to satisfy charges them for a feature
+ * Wolly has not built. That is invariant 4 in its most damaging form, because
+ * the points are unwinnable rather than merely unearned.
+ *
+ * It was not theoretical. `rights_declared` is `blocking: true`, and the publish
+ * pre-flight is exactly the blocking subset, so while it was scored the
+ * pre-flight refused EVERY book on the platform: a book with every author field
+ * complete, pressed, cover measured, priced, reviewed and approved scored 93,
+ * banded `ready_for_review`, and could not be published, with nothing any author
+ * or staff member could do about it. `ready_to_publish` was unreachable.
+ *
+ * The alternative of flipping the owner to Wolly is worse: the weight stays in
+ * the denominator at permanent zero credit, so the ceiling stays at 94 and the
+ * check renders as "waiting on Wolly" while its own copy still tells the author
+ * to go and do something.
+ *
+ * REMOVE AN ID HERE IN THE SAME COMMIT THAT SHIPS ITS WRITER. The weight comes
+ * back on its own; nothing else needs to change.
+ */
+/**
+ * Which of the three flows a report is measuring.
+ *
+ * Uploading a title and selling it are separate acts now, so scoring them
+ * together tells an author their finished manuscript is 71% done because they
+ * have not set a price they were never asked for. A `title` report measures the
+ * work; a `listing` report adds what selling it requires.
+ *
+ * Not two engines. `listing` is `title` plus four checks, so the pre-flight and
+ * the progress screen can never disagree about what a book still needs.
+ */
+export type ReportScope = 'title' | 'listing';
+
+/**
+ * The checks that only apply once an author has decided to sell.
+ *
+ * Everything here belongs to the publish flow: a price, somewhere to send the
+ * money, and Wolly's two review gates, which are what Wolly does in response to
+ * being asked to sell something. `rights_declared` is deliberately NOT here: an
+ * author records who holds what regardless of whether Wolly ever lists the
+ * book, which is the whole point of rights being its own flow.
+ */
+export const LISTING_SCOPE_CHECKS = new Set<CheckId>([
+  'price_set',
+  'payout_destination',
+  'edition_reviewed',
+  'listing_approved',
+]);
+
+export const AWAITING_WOLLY_TO_BUILD = new Set<CheckId>([
+  // Needs a preview-chapter picker writing `epubs/{bookId}.previewChapters`.
+  // The press already offers the first chapter by default, so no reader is
+  // worse off in the meantime and no book is incomplete without it.
+  'preview_defined',
+  // `rights_declared` LEFT THIS SET when the rights flow shipped. Its writer is
+  // `/books/rights/`, and a one-tap "I hold everything myself" satisfies it, so
+  // the six points are winnable and the blocking check is clearable. The
+  // server-side publish gate enforces it too; a contract test keeps the two
+  // lists identical.
+]);
+
 // ── Inputs ─────────────────────────────────────────────────────────────────
 
 /** Everything the engine is allowed to look at. Nothing else may influence the score. */
@@ -190,6 +254,15 @@ export interface ScoredBook {
   isFree?: boolean | null;
   isPublished?: boolean | null;
   conversionStatus?: string | null;
+  /**
+   * Whether the author has signed a publishing contract for this book.
+   *
+   * Selects the scope when the caller does not name one. It is a boolean rather
+   * than the contract itself because the score must not move when a contract's
+   * terms change: agreeing to sell is what adds the listing checks, and the
+   * price inside the agreement is scored by `price_set` like any other field.
+   */
+  hasContract?: boolean | null;
   conversion?: ScoredConversion | null;
   coverMetrics?: CoverMetrics | null;
   previewChapters?: number[] | null;
@@ -212,18 +285,61 @@ export interface ScoredConversion {
   pressedAt?: string | null;
 }
 
+/**
+ * The part of the author's profile the score depends on.
+ *
+ * Every field here is named for something that exists on `users/{uid}`. The
+ * projection that fills it is in the server tier; the mapping is recorded on
+ * each field because getting it wrong is silent, not loud.
+ */
 export interface ScoredAuthor {
+  /** `users.displayName`. */
   displayName?: string | null;
+  /**
+   * `users.authorBio`, the long reader-facing biography, NOT the short
+   * `users.bio`. The check's own wording and its ten-word threshold describe
+   * the long one, so reading the short one would tell an author with a full
+   * biography to go and add a short note about themselves.
+   */
   bio?: string | null;
+  /**
+   * `users.paymentInfo.payment_option`: a document id into `payment_methods`.
+   *
+   * Deliberately NOT resolved to a human label like "mobile money". The check
+   * asks only whether a destination has been chosen, so resolving it would buy
+   * a second Firestore read per book and change nothing about the score.
+   */
   payoutMethod?: string | null;
+  /**
+   * Whether `users.paymentInfo.payment_details` actually holds an account.
+   *
+   * A method with no details cannot be paid, so both halves are required. This
+   * used to name a `payoutAccountRef` field that exists on no document
+   * anywhere, which made this BLOCKING check permanently unsatisfiable: the
+   * publish pre-flight would have refused every book on the platform forever.
+   */
   payoutAccountRef?: string | null;
 }
 
+/**
+ * The part of a RightsGrant the score depends on.
+ *
+ * Deliberately much smaller than RightsGrant, because ScoreInput is hashed
+ * whole by `canonicalInputs()` to guard the recompute trigger. A field named
+ * here but read by no check would make staff verifying a grant trigger a
+ * recompute that cannot change the score. Fields get added when a check reads
+ * them, not in anticipation.
+ *
+ * It previously named three fields the registry does not have: `territory`
+ * (the grant stores `territories`, an array), `status` (the author-set axis is
+ * `disposition`, and the only thing called a rights *status* on this platform
+ * is the takedown gate this must never be wired to), and a `self_declared`
+ * verification value that has never existed. Nothing read them, so the score
+ * survived by luck.
+ */
 export interface ScoredRight {
-  format?: string | null;
-  territory?: string | null;
-  status?: string | null;
-  verificationState?: 'self_declared' | 'verified' | null;
+  /** Matches `RightsGrant.verificationState`. Absent reads as unverified. */
+  verificationState?: RightsVerificationState | null;
 }
 
 export interface ScoredReview {
@@ -251,6 +367,8 @@ export interface CheckResult {
 
 export interface PublishingReport {
   bookId: string;
+  /** Which flow this report measured. See ReportScope. */
+  scope: ReportScope;
   mode: 'preparing' | 'live';
   /** Null until the press has succeeded once, so nobody ever meets a 0%. */
   score: number | null;
@@ -325,14 +443,35 @@ const EVALUATORS: Record<CheckId, Evaluator> = {
     const headingShaped = c.headingShapedParagraphs ?? 0;
     const evidence = { headingLevel: level, wordCount, emptyChapters: empty, shortestChapterWords: shortest, headingShapedParagraphs: headingShaped };
 
-    if (level === null && wordCount >= 8000) {
-      return result('chapter_structure', 0, 'Mark your chapter titles as headings',
-        'Readers cannot jump between chapters yet, and a long book without chapter marks is hard to come back to.', evidence);
-    }
+    // The heading-shaped count is ONLY diagnostic when the press found no
+    // headings, so it has to be consulted inside this branch. Checked after it,
+    // as it once was, it could never fire in the case it was written for: the
+    // author who bolded their chapter titles instead of styling them.
+    //
+    // It changes the WORDS ONLY, never the credit. "Twelve lines look like
+    // chapter titles" and "this reads as one continuous piece" describe the
+    // same amount of remaining work; one of them says where to start.
     if (level === null) {
+      const shaped = headingShaped >= 3;
+      if (wordCount >= 8000) {
+        return result('chapter_structure', 0,
+          shaped
+            ? `${headingShaped} lines look like chapter titles but are not marked as headings`
+            : 'Mark your chapter titles as headings',
+          shaped
+            ? 'Style them as Heading 1 in your writing app and readers can jump straight to a chapter.'
+            : 'Readers cannot jump between chapters yet, and a long book without chapter marks is hard to come back to.',
+          evidence);
+      }
       // A short story is allowed to be one piece. This is never a failure.
-      return result('chapter_structure', 0.6, 'This reads as one continuous piece',
-        'That is fine for a short work. Marking headings would let readers jump around.', evidence);
+      return result('chapter_structure', 0.6,
+        shaped
+          ? `${headingShaped} lines look like chapter titles but are not marked as headings`
+          : 'This reads as one continuous piece',
+        shaped
+          ? 'Styling them as Heading 1 would let readers jump straight to a chapter.'
+          : 'That is fine for a short work. Marking headings would let readers jump around.',
+        evidence);
     }
     if (headingShaped >= 3) {
       return result('chapter_structure', 0.7, `${headingShaped} lines look like chapter titles but are not marked as headings`,
@@ -346,16 +485,36 @@ const EVALUATORS: Record<CheckId, Evaluator> = {
       'Readers can jump straight to any chapter.', evidence);
   },
 
+  /**
+   * Did the author's characters survive the trip?
+   *
+   * Narrowed from "anything the press grumbled about". It used to also count
+   * dropped images and failed cover fetches, both of which have their own
+   * checks, so one dropped image cost points twice and broke invariant 3. What
+   * is left is the one thing nothing else measures, and on this platform it is
+   * the thing that matters most: E, O and N with their marks are distinct
+   * letters in Twi, Ewe, Ga and Dagbani, so losing them changes words rather
+   * than blurring them.
+   */
   clean_conversion: ({ book }) => {
-    // Only author-actionable codes count. Showing someone a Word style name is
-    // how a report starts feeling like an exam it wrote itself.
     const codes = (book.conversion?.warningCodes ?? []).filter((w) => AUTHOR_ACTIONABLE.has(w.code));
-    const n = codes.reduce((sum, w) => sum + (w.count || 1), 0);
-    const credit = n === 0 ? 1 : n <= 2 ? 0.7 : n <= 5 ? 0.4 : 0.1;
-    return result('clean_conversion', credit,
-      n === 0 ? 'Your manuscript converted cleanly' : `${n} thing${n === 1 ? '' : 's'} to look at in the conversion`,
-      n === 0 ? 'Nothing was dropped or changed.' : 'These are parts of your file Wolly could not carry across exactly.',
-      { actionableWarnings: n, codes: codes.map((c) => c.code) });
+    const names = codes.map((c) => c.code);
+    const damaged = names.includes('mojibake');
+    const guessed = names.includes('encoding_fallback');
+    const evidence = { codes: names };
+
+    if (damaged) {
+      return result('clean_conversion', 0.2, 'Some characters did not survive your file',
+        'They were already damaged before the file reached Wolly. Only your original can fix them, so it is worth checking the book before readers do.',
+        evidence);
+    }
+    if (guessed) {
+      return result('clean_conversion', 0.6, 'Wolly had to guess how your file was saved',
+        'It was not saved as UTF-8, so accented and Ghanaian-language characters may be wrong. Re-saving as UTF-8 removes the guess.',
+        evidence);
+    }
+    return result('clean_conversion', 1, 'Every character came through as you typed it',
+      'Nothing in your text was changed or lost.', evidence);
   },
 
   images_intact: ({ book }) => {
@@ -404,8 +563,20 @@ const EVALUATORS: Record<CheckId, Evaluator> = {
 
   cover_quality: ({ book }) => {
     const m = book.coverMetrics;
+    // NOT full credit, which is what this returned before.
+    //
+    // The press writes coverMetrics only when the cover URL resolves to a
+    // Storage object it can fetch, so an externally hosted cover is never
+    // measured. Six points for a check that could not run is exactly the free
+    // points invariant 4 forbids: it made an unmeasurable cover score better
+    // than a measured mediocre one. Unmeasured leaves the denominator instead.
+    //
+    // A cover the press FAILED to fetch does not reach here: cover_present
+    // scores that zero, and this check depends on it, so invariant 3 already
+    // charges that once and excludes this one.
     if (!m || !m.width || !m.height) {
-      return result('cover_quality', 1, 'Cover looks fine', 'Nothing to change.', { measured: false });
+      return notApplicable('cover_quality',
+        'Wolly has not measured this cover yet.', { measured: false });
     }
     const shortest = Math.min(m.width, m.height);
     const ratio = m.height / m.width;
@@ -519,31 +690,64 @@ const EVALUATORS: Record<CheckId, Evaluator> = {
  * style, for instance) and never enters the score or the screen.
  */
 export const AUTHOR_ACTIONABLE = new Set([
-  'image_dropped',
-  'image_unreadable',
-  'cover_fetch_failed',
   'mojibake',
   'encoding_fallback',
-  'remote_image_dropped',
+]);
+
+/**
+ * Codes deliberately NOT scored here, because another check already charges for
+ * them, and invariant 3 says one cause costs once.
+ *
+ * `image_dropped` is scored by `images_intact`, which knows how many images
+ * there were and can therefore say "2 of 30" instead of "2". `cover_fetch_
+ * failed` is scored by `cover_quality`. Both were in the actionable set, so a
+ * single dropped image quietly cost points twice.
+ *
+ * `engine_note` is the press talking to itself about Word style names. Showing
+ * an author a Word style name is how a report starts feeling like an exam it
+ * wrote itself.
+ */
+export const SCORED_ELSEWHERE = new Set([
+  'image_dropped',
+  'cover_fetch_failed',
+  'engine_note',
 ]);
 
 // ── The computation ────────────────────────────────────────────────────────
 
 export function computeReport(
   input: ScoreInput,
-  options: { previous?: PublishingReport | null; now?: string } = {},
+  options: {
+    previous?: PublishingReport | null;
+    now?: string;
+    /**
+     * Defaults to `listing` for a book that has entered the publish flow or is
+     * already live, and `title` otherwise, so a caller that passes nothing gets
+     * the report the book's own state calls for.
+     */
+    scope?: ReportScope;
+  } = {},
 ): PublishingReport {
+  const scope: ReportScope =
+    options.scope ?? (input.book.hasContract || input.book.isPublished ? 'listing' : 'title');
   const results = CHECK_IDS.map((id) => EVALUATORS[id](input));
   const byId = new Map(results.map((r) => [r.id, r]));
 
   // Single cause, single cost. A dependent of a zeroed prerequisite is not
   // scored at all, so one missing thing is charged once.
+  //
+  // A check Wolly has built no way to satisfy is excluded by the same rule and
+  // for the same reason: it is not the author's outstanding work. Done here
+  // rather than inside each evaluator so there is one list to shorten when the
+  // missing surface ships. See AWAITING_WOLLY_TO_BUILD.
   for (const r of results) {
     const unmet = CHECKS[r.id].dependsOn.some((d) => (byId.get(d)?.credit ?? 0) === 0);
-    if (unmet) {
+    const outOfScope = scope === 'title' && LISTING_SCOPE_CHECKS.has(r.id);
+    if (unmet || outOfScope || AWAITING_WOLLY_TO_BUILD.has(r.id)) {
       r.state = 'not_applicable';
       r.credit = 0;
       r.pointsAtStake = 0;
+      r.headline = '';
     }
   }
 
@@ -573,6 +777,7 @@ export function computeReport(
 
   return {
     bookId: input.book.id,
+    scope,
     mode: input.book.isPublished ? 'live' : 'preparing',
     score,
     band: bandFor(score),
@@ -685,7 +890,26 @@ function sortDeep(value: unknown): unknown {
   return value;
 }
 
-/** The publish pre-flight is the blocking subset of the same checks, never separate logic. */
+/**
+ * The publish pre-flight is the blocking subset of the same checks, never
+ * separate logic.
+ *
+ * A NOT-APPLICABLE CHECK CANNOT BLOCK. This filtered on `state !== 'pass'`,
+ * which counted not-applicable as a failure, and the clearest case was the one
+ * the header at the top of this file uses to explain invariant 2: a free book
+ * has no payout work, so `payout_destination` correctly leaves the denominator,
+ * and the book then scored 100, banded `ready_to_publish`, and could not be
+ * published. The screen and the button disagreed, which is the one thing a
+ * pre-flight built from the same checks exists to prevent.
+ *
+ * Excluding them does not open a hole. The other way a check becomes
+ * not-applicable is an unmet prerequisite, and a prerequisite that matters is
+ * itself blocking and fails on its own account: an unpressed book is stopped by
+ * `manuscript_pressed`, not by the six checks waiting behind it. That is
+ * invariant 3 applied to the gate rather than only to the score.
+ */
 export function blockingFailures(report: PublishingReport): CheckResult[] {
-  return report.checks.filter((r) => CHECKS[r.id].blocking && r.state !== 'pass');
+  return report.checks.filter(
+    (r) => CHECKS[r.id].blocking && r.state !== 'pass' && r.state !== 'not_applicable',
+  );
 }

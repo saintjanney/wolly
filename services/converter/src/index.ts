@@ -37,6 +37,16 @@ export const onConversionRequested = onDocumentWritten(
     timeoutSeconds: 540,
     // One conversion at a time per instance: Chromium is not a good neighbour.
     concurrency: 1,
+    // The biggest single claim on the region's CPU quota: 2GiB at concurrency
+    // 1, so every permitted instance reserves a whole CPU. Three concurrent
+    // pressings is ample for this catalogue and leaves room for everything
+    // else to deploy.
+    // ONE pressing at a time, platform-wide, and it is a quota decision rather
+    // than a capacity one. This is 2GiB at concurrency 1, so every permitted
+    // instance reserves a whole CPU in a region with 20 to spend across
+    // thirteen services. A second book queues behind the first, which at 49
+    // books is not a constraint anyone will meet. Raise it with the quota.
+    maxInstances: 1,
   },
   async (event) => {
     const after = event.data?.after;
@@ -128,11 +138,16 @@ export const onConversionRequested = onDocumentWritten(
       const base = `converted/${bookId}/${result.provenance.fingerprint}`;
       const epubPath = `${base}/book.epub`;
       const pdfPath = `${base}/book.pdf`;
+      const previewPath = `${base}/preview.pdf`;
       await bucket.file(epubPath).save(result.epub, {
         contentType: 'application/epub+zip',
         resumable: false,
       });
       await bucket.file(pdfPath).save(result.pdf, {
+        contentType: 'application/pdf',
+        resumable: false,
+      });
+      await bucket.file(previewPath).save(result.preview, {
         contentType: 'application/pdf',
         resumable: false,
       });
@@ -145,6 +160,11 @@ export const onConversionRequested = onDocumentWritten(
         fileType: 'epub',
         epubUrl: `${publicBase}/${epubPath}`,
         pdfUrl: `${publicBase}/${pdfPath}`,
+        // The object PATH, not a URL. Nothing under converted/ is readable
+        // without going through a callable, and storing a URL here would invite
+        // a client to try fetching it directly and quietly fail.
+        previewPath,
+        pageCount: result.pageCount,
         conversion: {
           fingerprint: result.provenance.fingerprint,
           contentSha256: result.contentSha256,
@@ -160,6 +180,7 @@ export const onConversionRequested = onDocumentWritten(
           emptyChapters: result.emptyChapters,
           shortestChapterWords: result.shortestChapterWords,
           longestChapterWords: result.longestChapterWords,
+          headingShapedParagraphs: result.headingShapedParagraphs,
           imageCount: result.imageCount,
           droppedImageCount: result.droppedImageCount,
           unsupportedGlyphs: result.unsupportedGlyphs.slice(0, 20),

@@ -30,6 +30,19 @@ export interface ChapterStats {
   emptyChapters: number;
   shortestChapterWords: number;
   longestChapterWords: number;
+  /**
+   * Paragraphs that look like chapter titles but were never marked as headings.
+   *
+   * The commonest real defect in a manuscript typed in Word: the author made
+   * their chapter titles look right by bolding and centring them instead of
+   * applying Heading 1. The file reads correctly to a human and carries no
+   * structure at all, so the press finds no headings, the book becomes one
+   * unnavigable block, and nothing tells the author why.
+   *
+   * Counting them is what lets the report say "twelve lines look like chapter
+   * titles" instead of the useless "this reads as one continuous piece".
+   */
+  headingShapedParagraphs: number;
 }
 
 export function splitChaptersWithStats(
@@ -54,8 +67,80 @@ export function splitChaptersWithStats(
       emptyChapters: counts.filter((n) => n === 0).length,
       shortestChapterWords: counts.length ? Math.min(...counts) : 0,
       longestChapterWords: counts.length ? Math.max(...counts) : 0,
+      headingShapedParagraphs: countHeadingShaped(nodes),
     },
   };
+}
+
+/** A word that starts a chapter title in an English-language manuscript. */
+const DIVISION_WORD =
+  /^(chapter|part|book|section|prologue|epilogue|introduction|preface|foreword|afterword|interlude|appendix)\b/i;
+/** Roman numerals and bare numbers, optionally followed by a short title. */
+const NUMBERED_TITLE = /^(?:[IVXLCDM]{1,7}|\d{1,3})(?:[.)]|\s|$)/;
+/**
+ * A paragraph that is nothing but a chapter number: `12`, `12.`, `IV)`.
+ *
+ * Exempt from the ends-like-a-sentence rule below, because a lone `12.` has no
+ * sentence to end. Without the exemption the commonest numbering style of all
+ * goes uncounted.
+ */
+const BARE_ENUMERATOR = /^(?:[IVXLCDM]{1,7}|\d{1,3})[.)]?$/;
+
+/**
+ * Counts paragraphs shaped like a chapter title.
+ *
+ * DELIBERATELY CONSERVATIVE, because the cost of the two errors is not
+ * symmetric. Missing a real one costs the author a hint they never knew they
+ * could have had. Inventing one sends them hunting through a manuscript for a
+ * problem that is not there, and a report that does that twice is a report
+ * nobody opens again. So every rule here demands positive evidence, and a
+ * paragraph that is merely short is not enough.
+ *
+ * Only top-level paragraphs count: a short bold line inside a blockquote or a
+ * list item is doing something else.
+ */
+function countHeadingShaped(nodes: BookNode[]): number {
+  let count = 0;
+  for (const node of nodes) {
+    if (node.tag !== 'p') continue;
+    const text = plain(node.children).replace(/\s+/g, ' ').trim();
+
+    if (text.length === 0 || text.length > 60) continue;
+
+    // A lone chapter number is a title and needs no further evidence.
+    if (BARE_ENUMERATOR.test(text)) {
+      count += 1;
+      continue;
+    }
+
+    // Otherwise a title is short and does not end like a sentence, and it
+    // contains an actual word: a row of asterisks is a scene break.
+    if (/[.,;:!?]$/.test(text)) continue;
+    if (!/\p{L}/u.test(text)) continue;
+
+    const named = DIVISION_WORD.test(text) || NUMBERED_TITLE.test(text);
+    const emphasised = wholly(node.children, new Set(['strong', 'b', 'em', 'i']));
+    // All-caps needs at least two letters, so an initial is not a chapter.
+    const shouted =
+      text === text.toUpperCase() && (text.match(/\p{L}/gu) ?? []).length >= 2;
+
+    if (named || emphasised || shouted) count += 1;
+  }
+  return count;
+}
+
+/** True when every non-blank child sits inside one of `tags`. */
+function wholly(children: Array<BookNode | string>, tags: Set<string>): boolean {
+  let sawOne = false;
+  for (const child of children) {
+    if (typeof child === 'string') {
+      if (child.trim()) return false;
+      continue;
+    }
+    if (!tags.has(child.tag)) return false;
+    if (plain(child.children).trim()) sawOne = true;
+  }
+  return sawOne;
 }
 
 export function splitChapters(nodes: BookNode[], fallbackTitle: string): Chapter[] {

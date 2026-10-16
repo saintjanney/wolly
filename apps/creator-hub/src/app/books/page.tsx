@@ -142,10 +142,9 @@ export default function BooksPage() {
             Start your publishing journey by creating your first book. Share your story with the world!
           </p>
           <button
-            onClick={() => {
-              setEditingBook(null);
-              setIsCreateBookDialogOpen(true);
-            }}
+            // The new Title flow. Creating a book no longer asks for a price:
+            // uploading and selling are separate acts now.
+            onClick={() => router.push('/books/new/')}
             className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-xl text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-2xl hover:scale-105 transition-all duration-300"
           >
             <PlusIcon className="h-6 w-6 mr-2" />
@@ -290,10 +289,7 @@ export default function BooksPage() {
 
       {/* Floating Action Button */}
       <button
-        onClick={() => {
-          setEditingBook(null);
-          setIsCreateBookDialogOpen(true);
-        }}
+        onClick={() => router.push('/books/new/')}
         className="fixed bottom-8 right-8 w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-2xl hover:shadow-3xl hover:scale-110 transition-all duration-300 flex items-center justify-center z-50 group"
         aria-label="Create new book"
       >

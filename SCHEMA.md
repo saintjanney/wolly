@@ -113,11 +113,179 @@ costs a second read of the manuscript, and the report scores against them.
 | `conversion.headingLevel` | `'h1' \| 'h2' \| null`. Was computed and discarded; without it the report sees every book as one unmarked block |
 | `conversion.frontMatterChapter` | Content appeared before the first heading |
 | `conversion.emptyChapters`, `shortestChapterWords`, `longestChapterWords` | Usually a stray page break |
+| `conversion.headingShapedParagraphs` | Paragraphs that look like chapter titles but carry no heading. The commonest defect in a Word manuscript: titles bolded and centred instead of styled Heading 1, so the file looks right and carries no structure |
 | `conversion.imageCount`, `droppedImageCount` | |
 | `conversion.unsupportedGlyphs` | Characters the embedded fonts cannot draw. Non-empty means empty boxes in the author's own PDF, which is a **blocker** for a Ghanaian-language book |
 | `conversion.warningCodes` | Classified, so author-actionable notes can be shown and engine noise stays hidden |
+
+**Warning codes the press emits**, and who scores each:
+
+| Code | Scored by | Meaning |
+|---|---|---|
+| `encoding_fallback` | `clean_conversion` | The file was not valid UTF-8, so it was read as Windows-1252. Accented and Ghanaian-language characters may be wrong |
+| `mojibake` | `clean_conversion` | The text already contained replacement characters before upload. Only the author's original can fix it |
+| `image_dropped` | `images_intact` | An unsupported image type was left out |
+| `cover_fetch_failed` | `cover_present` | The press could not download the cover |
+| `engine_note` | nobody | The press talking to itself about Word style names. Never shown to an author |
+
+**Checks with no writer yet.** `preview_defined` is in `AWAITING_WOLLY_TO_BUILD`
+and scores `not_applicable`, because nothing writes `previewChapters` (the press
+already offers the first chapter by default, so no reader is worse off).
+
+Scoring a check the author cannot satisfy charges them for a feature Wolly has
+not built. `rights_declared` was in that set and is `blocking: true`, so the
+publish pre-flight once refused **every book on the platform**: a finished,
+priced, pressed, staff-approved book scored 93 and could not be published. It
+left the set when `/books/rights/` shipped, and a one-tap "I hold everything
+myself" clears it. Remove an id from that set in the same commit that ships its
+writer, and enforce it in `signPublishingContract` at the same time, or the
+anti-drift contract test fails.
+
+`AUTHOR_ACTIONABLE` in the report engine is the first two only. A code scored by
+a dedicated check must not also be counted by `clean_conversion`, or one dropped
+image costs points twice; the excluded codes are listed in `SCORED_ELSEWHERE`
+next to the check that owns each.
+| `previewPath` | Storage path of the press preview: the first 8 pages of the pressed PDF, cut from the same typesetting run. A path, not a URL, because nothing under `converted/` is readable without a callable. **Server-owned** |
+| `pageCount` | Pages in the finished edition, measured by the press |
 | `coverMetrics` | `{ width, height, bytes, contentType, fetchedOk }`. `fetchedOk: false` used to be a silent `console.warn` |
 | `previewChapters` | Chapters offered as a free sample |
+
+### Purchase status, and whose status it is
+
+`purchases.status` is **Wolly's** lifecycle: `pending | completed | failed |
+abandoned`. `providerStatus` is **Paystack's**, and the two are deliberately
+separate fields because they are not the same vocabulary.
+
+Paystack reports `ongoing` while a reader is still entering a mobile-money OTP,
+and `abandoned` when they leave checkout. `verifyPaystackPayment` used to write
+that value straight onto `status`, which produced documents carrying values
+`PurchaseStatus` does not contain and, far worse, moved a live sale out of
+`pending` while the reader was still paying. `pending` is the set anything
+reconciling unfinished sales looks at, so **checking on a purchase could remove
+it from the only thing that would have completed it.** On Ghanaian mobile money,
+mid-payment is the normal case rather than an edge one.
+
+The lifecycle now leaves `pending` only for something terminal
+(`TERMINAL_PROVIDER_STATUS` in `services/payments`); everything else stays
+pending and is looked at again. Being wrong in that direction leaves a sale
+recoverable. A contract test pins it, including for statuses Paystack has not
+invented yet.
+
+`metadata.kind: 'book'` is sent to Paystack at checkout. It is the contract with
+`paystackWebhook` in `services/api`, which drops book events so the two do not
+both write the same purchase. Nothing was setting it, so that guard never fired.
+
+### How a sale actually completes
+
+Three things can settle a book purchase, and only the first two existed before:
+
+1. **The client returns from Paystack** and calls `verifyPaystackPayment`. The
+   fast path, and until now the ONLY path.
+2. **`reconcilePendingPurchases`** runs every 15 minutes over purchases that have
+   been `pending` for more than 10 minutes, verifies each against Paystack with
+   the secret key, and settles the ones that were paid.
+3. Nothing else. `paystackWebhook` in `services/api` deliberately drops book
+   events so the two never write the same document.
+
+The reconciler is why a reader can close the tab. Before it, a sale completed
+only if the client came back, so a killed app, a lost signal or a browser that
+cannot follow `wolly://payment-callback` meant Paystack had the money and the
+reader had no book, with nothing anywhere to notice. It is scheduled rather than
+webhook-driven because Paystack allows one webhook URL per integration and
+`services/api` owns it: completing books there would mean a third copy of the
+money split in a codebase that cannot import this schema.
+
+Both paths settle through one `settlePurchase`, asserted by contract test to have
+exactly one batch commit. Two implementations would be two ways to get money
+wrong in the path nobody watches.
+
+The query needs `purchases(status ASC, launchedAt ASC)`, which is in
+`firestore.indexes.json`. A composite query without an index throws at runtime
+rather than at deploy, so it would look healthy until the first stuck sale.
+
+### The publishing contract
+
+Uploading a title and selling it are separate acts. A manuscript becomes a
+**Title** the moment it is uploaded and stays one until its author decides to
+sell it; that decision is recorded at `epubs/{bookId}/contracts/{contractId}`.
+
+**Server-written only.** `signPublishingContract` is the sole writer, because the
+document freezes the revenue share and an author who could create one would set
+their own terms. Never edited, never deleted: changing a price means signing a
+new contract and ending the old one, so the record of what was agreed outlives
+the agreement.
+
+`epubs.activeContractId` points at the live one and is **server-owned**. Its
+presence is what moves the report from title scope to listing scope, so an author
+who could write it would be listed as having agreed to something they never saw.
+
+**Deliberately not a `RightsGrant`.** The registry has the vocabulary to express
+"Wolly may sell the ebook worldwide", which is exactly the trap. The registry
+records claims Wolly does *not* verify, made by the author about third parties;
+this is an agreement Wolly is itself a party to and bound by. Collapsing them
+would mean an author editing a licence could change what Wolly owes them.
+
+`PUBLISHING_AGREEMENT_V1` is stored **verbatim** on each contract, mirroring
+`RightsDeclaration`: "they accepted" is worth little without "to what words, and
+when". Replacing the wording is a version bump, never an edit. Tests assert it
+uses no banned vocabulary and promises no takedown Wolly cannot perform, since
+RIGHTS.md is explicit that copies already downloaded cannot be recalled.
+
+### Report scope
+
+`computeReport(input, { scope })` measures either a **title** or a **listing**.
+Four checks belong to the publish flow alone: `price_set`, `payout_destination`,
+`edition_reviewed`, `listing_approved`. In title scope they are `not_applicable`
+and leave the denominator, so a finished manuscript is not told it is incomplete
+for want of a price nobody asked it for.
+
+Scope defaults from the book's own state (`hasContract` or `isPublished`), so a
+caller that passes nothing gets the report the book calls for. It is one engine,
+not two: a listing report is a title report plus those four checks, which is what
+stops the progress screen and the publish pre-flight disagreeing.
+
+`rights_declared` is deliberately **not** listing-scoped: an author records who
+holds what whether or not Wolly ever lists the book.
+
+### Revenue share
+
+The split between an author and Wolly is **configurable by staff** in the
+backoffice, and **frozen at every point it matters**. Those two properties are in
+tension, and the tension is the design.
+
+| Where | Document | Meaning |
+|---|---|---|
+| Platform | `platform_settings/revenue` | What Wolly currently offers. Staff-editable, signed-in-readable |
+| Purchase | `purchases/{uid}_{bookId}.authorShare`, `.revenueBasis` | What THIS sale was agreed at, frozen when checkout began |
+| Ledger | `transactions/{ref}.authorShare`, `.revenueBasis`, `.authorEarningsMinor` | What THIS sale actually paid, frozen at completion |
+
+Reading the platform document when computing earnings is the bug this shape
+exists to prevent. Staff changing the terms tomorrow must not rewrite money an
+author has already earned, or a contract they have already signed.
+
+`basis` decides who carries the payment processor's fee and nothing else:
+
+- `gross` (default) - the author's share is a clean percentage of the sticker
+  price and Wolly absorbs the fee. The same book at the same price earns the
+  author the same amount whether the reader paid by mobile money or by card,
+  which is the only version an author can check against a receipt.
+- `net` - the fee comes off first and both sides carry it. Wolly's margin is
+  protected, at the cost of identical sales paying differently by channel.
+
+`readRevenueTerms()` is a **safety boundary**, not defensive habit: the settings
+document is hand-edited, and `authorShare: 70` typed instead of `0.7` would pay
+an author seventy times the sale price. Anything invalid falls back to the
+platform default rather than throwing, because a config typo must not take
+checkout down. `revenueTermsProblem()` is the stricter check used on save, and it
+returns the reason so the backoffice can say what is wrong.
+
+`splitSale()` is duplicated in `services/payments` (Firebase runs `npm install`
+against the public registry at deploy time, so a workspace dependency cannot
+resolve there). `services/api/test/contract.test.js` pins the two together **by
+behaviour**, running both over a grid of sales, bases, shares and malformed
+settings. A comment saying "keep these in sync" is not a mechanism.
+
+`epubs.royaltyOption` (`'35%' | '70%'`) is **deprecated**. Nothing reads it.
 
 ### Rights
 
