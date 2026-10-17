@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { ServerUnavailableNotice } from '@/components/ui/ServerUnavailableNotice';
+import { describeServerError, useServerFeatures } from '@/lib/serverFeatures';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { PostEditor, docIsEmpty } from '@/components/blog/PostEditor';
 import { BlogService, type ComposerDoc } from '@/services/blogService';
@@ -52,6 +54,7 @@ function Editor() {
   const [subtitle, setSubtitle] = useState('');
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const server = useServerFeatures();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
 
   useEffect(() => setPageTitle('Edit post'), [setPageTitle]);
@@ -177,7 +180,7 @@ function Editor() {
     } catch (error) {
       // The callable rejects empty posts and oversized segments with messages
       // written for the author, so surface them rather than a generic failure.
-      toast.error(error instanceof Error ? error.message : 'Could not publish.');
+      toast.error(describeServerError(error, 'Could not publish.'));
       console.error('Publish failed', error);
     } finally {
       setPublishing(false);
@@ -199,6 +202,7 @@ function Editor() {
 
   return (
     <div className="p-6 max-w-3xl">
+      <ServerUnavailableNotice title="Publishing posts is temporarily unavailable." />
       <header className="mb-4 flex items-center justify-between gap-4">
         <div className="text-sm text-gray-500">
           {post.status === 'published' ? (
@@ -229,8 +233,14 @@ function Editor() {
           ) : null}
           <button
             onClick={publish}
-            disabled={publishing || !hasBody}
-            title={hasBody ? undefined : 'Write something to publish'}
+            disabled={publishing || !hasBody || server === 'unavailable'}
+            title={
+              server === 'unavailable'
+                ? 'Publishing is temporarily unavailable'
+                : hasBody
+                  ? undefined
+                  : 'Write something to publish'
+            }
             className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {publishing ? 'Publishing…' : post.status === 'published' ? 'Update' : 'Publish'}

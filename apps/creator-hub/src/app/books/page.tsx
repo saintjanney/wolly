@@ -212,7 +212,9 @@ export default function BooksPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <StarIconSolid className="w-5 h-5 text-yellow-300" />
-                      <span className="text-sm font-semibold">4.8 Rating</span>
+                      <span className="text-sm font-semibold">
+                        {featuredBook.averageRating > 0 ? `${featuredBook.averageRating.toFixed(1)} Rating` : 'No ratings yet'}
+                      </span>
                     </div>
                     {!featuredBook.isFree && (
             <div className="flex items-center gap-2">
@@ -489,7 +491,7 @@ function BookRow({
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <StarIconSolid className="w-4 h-4 text-yellow-400" />
-                      <span className="text-gray-600">4.5</span>
+                      <span className="text-gray-600">{book.averageRating > 0 ? book.averageRating.toFixed(1) : '–'}</span>
                     </div>
                   </div>
 

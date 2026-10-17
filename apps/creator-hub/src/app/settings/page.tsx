@@ -322,12 +322,18 @@ export default function SettingsPage() {
         penName: profileData.penName,
         authorBio: profileData.authorBio,
         website: profileData.website,
-        socialLinks: {
-          twitter: profileData.twitter || undefined,
-          linkedin: profileData.linkedin || undefined,
-          instagram: profileData.instagram || undefined,
-          facebook: profileData.facebook || undefined,
-        },
+        // Only the links that were filled in. Firestore rejects `undefined`
+        // inside a map, so an empty field must be left out, not sent as nothing.
+        socialLinks: Object.fromEntries(
+          (
+            [
+              ['twitter', profileData.twitter],
+              ['linkedin', profileData.linkedin],
+              ['instagram', profileData.instagram],
+              ['facebook', profileData.facebook],
+            ] as Array<[string, string]>
+          ).filter(([, value]) => value && value.trim()),
+        ),
       });
       toast.success('Profile updated successfully');
     } catch (error) {

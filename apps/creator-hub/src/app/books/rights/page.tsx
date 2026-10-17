@@ -99,7 +99,10 @@ function Rights() {
   }, [setPageTitle]);
 
   const reload = useCallback(async () => {
-    if (!bookId) return;
+    if (!bookId) {
+      setLoading(false);
+      return;
+    }
     const [b, g] = await Promise.all([TitleService.get(bookId), RightsService.list(bookId)]);
     setBook(b);
     setGrants(g);

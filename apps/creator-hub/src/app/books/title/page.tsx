@@ -10,6 +10,8 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { TitleService, TitleError, COVER_ACCEPT } from '@/services/titleService';
 import { ManuscriptService, ACCEPT_ATTRIBUTE, describeRejection } from '@/services/manuscriptService';
 import { EditionPreview } from '@/components/book/EditionPreview';
+import { ServerUnavailableNotice } from '@/components/ui/ServerUnavailableNotice';
+import { describeUploadError } from '@/lib/serverFeatures';
 import { computeReport, type EpubBook, type PublishingReport } from '@wolly/schema';
 
 /** Matches the composer's network debounce. See the comment on autosave below. */
@@ -69,7 +71,13 @@ function Workspace() {
   // denied by rules, and an unhandled denial leaves the screen loading for ever
   // rather than saying what is wrong.
   useEffect(() => {
-    if (!bookId || authLoading) return;
+    // No id means nothing to watch, and nothing to wait for either: without
+    // this the screen said "Loading…" for ever instead of "not found".
+    if (!bookId) {
+      setLoading(false);
+      return;
+    }
+    if (authLoading) return;
     if (!user) {
       setLoading(false);
       return;
@@ -159,7 +167,7 @@ function Workspace() {
       await ManuscriptService.submit(bookId, user.uid, file);
       toast.success('Uploaded. Wolly is typesetting your book.');
     } catch (error) {
-      toast.error((error as Error).message || 'Upload failed.');
+      toast.error(describeUploadError(error, 'Upload failed.'));
     } finally {
       setBusy(null);
     }
@@ -172,7 +180,11 @@ function Workspace() {
       await TitleService.uploadCover(bookId, user.uid, file);
       toast.success('Cover saved.');
     } catch (error) {
-      toast.error(error instanceof TitleError ? error.message : 'Could not save that cover.');
+      toast.error(
+        error instanceof TitleError
+          ? error.message
+          : describeUploadError(error, 'Could not save that cover.'),
+      );
     } finally {
       setBusy(null);
     }
@@ -228,6 +240,8 @@ function Workspace() {
           </p>
         ) : null}
       </header>
+
+      <ServerUnavailableNotice title="Typesetting, previews and downloads are temporarily unavailable." />
 
       <Section title="Your manuscript" icon={DocumentTextIcon}>
         <p className="text-sm text-gray-600">

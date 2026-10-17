@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 import { CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { ServerUnavailableNotice } from '@/components/ui/ServerUnavailableNotice';
+import { useServerFeatures } from '@/lib/serverFeatures';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { PublishService, PublishError } from '@/services/publishService';
 import { TitleService } from '@/services/titleService';
@@ -43,6 +45,7 @@ function Publish() {
   const searchParams = useSearchParams();
   const bookId = searchParams.get('book') ?? '';
   const { user, loading: authLoading } = useAuth();
+  const server = useServerFeatures();
   const { setPageTitle } = usePageTitle();
   const router = useRouter();
 
@@ -63,7 +66,10 @@ function Publish() {
   }, [setPageTitle]);
 
   const load = useCallback(async () => {
-    if (!bookId) return;
+    if (!bookId) {
+      setLoading(false);
+      return;
+    }
     const [b, t, history] = await Promise.all([
       TitleService.get(bookId),
       PublishService.currentTerms(bookId),
@@ -172,6 +178,8 @@ function Publish() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
+      <ServerUnavailableNotice title="Signing the publishing agreement is temporarily unavailable." />
+
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Publish on Wolly</h1>
         <p className="mt-2 text-sm text-gray-600">
@@ -265,7 +273,7 @@ function Publish() {
 
         <button
           onClick={sign}
-          disabled={!signed || saving || (!isFree && !(Number(price) > 0))}
+          disabled={!signed || saving || server === 'unavailable' || (!isFree && !(Number(price) > 0))}
           className="mt-5 w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
           {saving ? 'Recording…' : 'Sign and send to Wolly'}
