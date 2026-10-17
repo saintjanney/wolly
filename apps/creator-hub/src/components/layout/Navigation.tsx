@@ -12,9 +12,11 @@ import {
   Bars3Icon,
   XMarkIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 import { useState } from 'react';
+import { FOLIO_URL } from '@/lib/folio';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Squares2X2Icon, color: 'blue' },
@@ -25,6 +27,7 @@ const navigation = [
 
 const publicNavigation = [
   { name: 'Features', href: '#features' },
+  { name: 'Short Stories', href: FOLIO_URL, external: true },
   { name: 'Pricing', href: '#pricing' },
   { name: 'About', href: '#about' },
 ];
@@ -66,6 +69,8 @@ export default function Navigation() {
                 <a
                   key={item.name}
                   href={item.href}
+                  target={item.external ? '_blank' : undefined}
+                  rel={item.external ? 'noopener noreferrer' : undefined}
                   className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors duration-200"
                 >
                   {item.name}
@@ -108,6 +113,8 @@ export default function Navigation() {
                 <a
                   key={item.name}
                   href={item.href}
+                  target={item.external ? '_blank' : undefined}
+                  rel={item.external ? 'noopener noreferrer' : undefined}
                   onClick={() => setIsPublicMobileMenuOpen(false)}
                   className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors duration-200"
                 >
@@ -270,6 +277,36 @@ export default function Navigation() {
                 </div>
               );
             })}
+
+            {/* Folio lives on its own site, so this leaves the hub. */}
+            <div className="relative group">
+              <a
+                href={FOLIO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`
+                  flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-4'}
+                  ${isSidebarCollapsed ? 'px-2 py-3.5' : 'px-5 py-3.5'}
+                  rounded-lg font-medium transition-all duration-200 ease-in-out overflow-hidden
+                  border-l-4 text-gray-600 hover:text-amber-700 hover:bg-amber-50/50 hover:border-amber-200
+                  hover:scale-[1.02] hover:shadow-sm
+                `}
+                title={isSidebarCollapsed ? 'Short Stories' : undefined}
+              >
+                <SparklesIcon className="w-5 h-5 flex-shrink-0 transition-all duration-200 text-gray-400 group-hover:text-amber-600" />
+                <span className={`text-sm transition-all duration-200 whitespace-nowrap ${isSidebarCollapsed ? 'lg:opacity-0 lg:w-0 lg:overflow-hidden lg:max-w-0' : 'opacity-100 max-w-full'}`}>
+                  Short Stories
+                </span>
+              </a>
+
+              {isSidebarCollapsed && (
+                <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 whitespace-nowrap shadow-lg">
+                  Short Stories
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full border-4 border-transparent border-r-gray-900"></div>
+                </div>
+              )}
+            </div>
           </nav>
         </div>
       </aside>

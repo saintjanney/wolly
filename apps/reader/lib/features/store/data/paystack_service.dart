@@ -136,36 +136,80 @@ class PaystackService {
   }
 }
 
+/// Thrown when the download service could not be reached, or did not answer
+/// as itself: a transport failure, a timeout, a 5xx, or a body that is not the
+/// callable's JSON envelope (which is what Google's own error page looks like
+/// when the function is down or undeployed).
+///
+/// Deliberately NOT a [PaystackError]. That one is the server's considered
+/// answer ("Buy this book to read it.") and must be shown to the reader as it
+/// is. This one means there was no answer, which for a free book is something
+/// the reader can work around (see `FreeBookFallback`) and for a paid one is
+/// something to retry later.
+class BookServiceUnavailable implements Exception {
+  const BookServiceUnavailable();
+  @override
+  String toString() => 'The download service is unavailable.';
+}
+
 /// Resolves a fresh, short-lived download URL for a book.
 ///
-/// Paid book files no longer carry a permanent public token, so the stored
-/// `epubs.url` will not work for them. The server checks entitlement (owner, or a
-/// completed purchase) and returns a signed URL valid for a few minutes. Free
-/// books come back unchanged.
+/// Book files do not carry a permanent public token, so the stored `epubs.url`
+/// cannot be fetched as it is. The server checks entitlement (free book, owner,
+/// or a completed purchase) and rights status, and returns a signed URL valid
+/// for a few minutes.
 class BookDownloadService {
   BookDownloadService._();
 
   static const _endpoint =
       'https://europe-west2-wolly-1133d.cloudfunctions.net/getBookDownloadUrl';
 
-  /// Returns a usable URL, or throws [PaystackError] with a reader-facing
-  /// message ("Buy this book to read it.").
+  /// How long to wait for the server before concluding it is not there. The
+  /// function answers in well under a second when it is up; a wait this long
+  /// is an outage, and a reader with a free book should not sit through it.
+  static const _timeout = Duration(seconds: 15);
+
+  /// Returns a usable URL.
+  ///
+  /// Throws [PaystackError] with a reader-facing message when the server
+  /// refuses ("Buy this book to read it."), and [BookServiceUnavailable] when
+  /// the server cannot be reached or does not answer as itself.
   static Future<String> resolveUrl(String bookId) async {
     final user = FirebaseAuth.instance.currentUser;
     final token = await user?.getIdToken();
     if (token == null) throw const PaystackError('Please sign in to read.');
 
-    final res = await http.post(
-      Uri.parse(_endpoint),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      // Callable protocol: the payload is wrapped in `data`.
-      body: jsonEncode({'data': {'bookId': bookId}}),
-    );
+    final http.Response res;
+    try {
+      res = await http
+          .post(
+            Uri.parse(_endpoint),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            // Callable protocol: the payload is wrapped in `data`.
+            body: jsonEncode({'data': {'bookId': bookId}}),
+          )
+          .timeout(_timeout);
+    } on Exception {
+      // SocketException, ClientException, TimeoutException: nothing came back.
+      throw const BookServiceUnavailable();
+    }
 
-    final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+    // A 5xx is the platform or the function failing, not a decision about this
+    // reader or this book.
+    if (res.statusCode >= 500) throw const BookServiceUnavailable();
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(res.body);
+    } on FormatException {
+      // An HTML error page where the callable envelope should be.
+      throw const BookServiceUnavailable();
+    }
+    if (decoded is! Map<String, dynamic>) throw const BookServiceUnavailable();
+
     if (res.statusCode != 200) {
       final error = decoded['error'];
       final message = error is Map<String, dynamic> ? error['message'] : null;

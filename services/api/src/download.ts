@@ -58,8 +58,9 @@ export const getBookDownloadUrl = onCall(
     };
 
     // Which pressing to hand back. The press produces both an EPUB and a PDF,
-    // and both live under `converted/`, which no client can read directly, so
-    // asking for the PDF has to come through here too. Omitting `format` keeps
+    // and both live under `converted/`, which no client can read directly
+    // (free published books excepted; see storage.rules), so asking for the
+    // PDF has to come through here too. Omitting `format` keeps
     // the original behaviour of serving whatever `url` points at, which is what
     // the reader does and what unpressed and external books still need.
     const format = (request.data?.format ?? '') as string;

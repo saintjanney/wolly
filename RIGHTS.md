@@ -129,10 +129,15 @@ the book is published or you own it; `rightsStatus` is not `revoked` (and not
 `disputed` unless you own it); and for a paid book, that a `purchases` document
 says `completed`. Only then does it mint a **15-minute v4 signed URL**.
 
-There is no path around it. `storage.rules` denies every client read of
-`converted/**`, and the bucket has no public IAM binding, so the
-`storage.googleapis.com` form of those paths is not readable either. Signing
-failure throws rather than falling back to a permanent URL.
+There is one path around it, and it is narrow: `storage.rules` lets a
+signed-in reader fetch the files of a book that is free, published, and whose
+`rightsStatus` is neither `revoked` nor `disputed`, so the reader can still
+open free books while the function is unreachable. Those are the same checks
+the function applies to a reader of a free book, so a takedown closes both
+paths at once. Every other client read of `converted/**` is denied, and the
+bucket has no public IAM binding, so the `storage.googleapis.com` form of
+those paths is not readable either. Signing failure throws rather than falling
+back to a permanent URL.
 
 Setting `rightsStatus: 'revoked'` therefore means: **nobody, including the
 author, can obtain the file again.**

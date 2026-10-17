@@ -86,13 +86,22 @@ class _ReadPDFState extends State<ReadPDF> {
 
   Future<void> _loadPDF() async {
     try {
-      final data = await http.get(Uri.parse(widget.book.downloadUrl));
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/${widget.book.title}.pdf');
-      await file.writeAsBytes(data.bodyBytes);
+      // A file the free-book fallback already fetched through Storage, or the
+      // signed URL the server issued.
+      final String path;
+      final local = widget.book.localPath;
+      if (local != null) {
+        path = local;
+      } else {
+        final data = await http.get(Uri.parse(widget.book.downloadUrl));
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File('${dir.path}/${widget.book.title}.pdf');
+        await file.writeAsBytes(data.bodyBytes);
+        path = file.path;
+      }
       if (mounted) {
         setState(() {
-          _pdfPath = file.path;
+          _pdfPath = path;
           _loaded = true;
         });
       }

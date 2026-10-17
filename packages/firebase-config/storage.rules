@@ -61,17 +61,41 @@ service firebase.storage {
 
     // Books pressed by @wolly/converter.
     //
-    // DENIED TO EVERY CLIENT, deliberately and explicitly. These are the
-    // finished EPUB and PDF, including paid books, and the only legitimate way
+    // These are the finished EPUB and PDF, including paid books. The normal way
     // to obtain one is the `getBookDownloadUrl` function, which checks purchase
-    // entitlement and rights status and then issues a 15-minute signed URL.
-    // The bucket also has no public IAM binding, so the storage.googleapis.com
-    // form of these paths is not readable either.
+    // entitlement and rights status and then issues a 15-minute signed URL. The
+    // bucket has no public IAM binding, so the storage.googleapis.com form of
+    // these paths is not readable either.
     //
-    // This block grants nothing; it exists so the reason is written down at the
-    // path itself, and so a later permissive wildcard has to argue with it.
-    match /converted/{allPaths=**} {
-      allow read, write: if false;
+    // ONE exception, and it is the only one: a signed-in reader may fetch the
+    // files of a book whose own document says it is FREE and PUBLISHED. Free
+    // books have nothing to protect, and without this the reader could not
+    // open a single book while the function was unreachable, which a billing
+    // lapse made a real outage rather than a hypothetical one. The reader still
+    // asks the function first and only falls back to this when the function
+    // does not answer at all (see the reader's FreeBookFallback).
+    //
+    // Paid books are NOT granted here under any condition. The file is the
+    // thing being sold, and the only check that a sale happened is the one the
+    // function does against `purchases`. Unpublishing closes this path, and so
+    // does a rights problem: `revoked` and `disputed` are refused here exactly
+    // as the function refuses them to a reader (see RIGHTS.md). The field is
+    // absent on books that predate rights tracking, which the function treats
+    // as clear, so this does too.
+    //
+    // Nothing is ever writable here: only the press writes under converted/,
+    // and it does so with the Admin SDK, which rules do not apply to.
+    match /converted/{bookId}/{allPaths=**} {
+      function book() {
+        return firestore.get(/databases/(default)/documents/epubs/$(bookId)).data;
+      }
+
+      allow read: if request.auth != null
+        && book().isFree == true
+        && book().isPublished == true
+        && !(book().get('rightsStatus', 'clear') in ['revoked', 'disputed']);
+
+      allow write: if false;
     }
 
     // Blog media (cover art and inline post images).

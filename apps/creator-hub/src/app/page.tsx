@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import Link from 'next/link';
 import LoginForm from '@/components/auth/LoginForm';
+import { FOLIO_URL } from '@/lib/folio';
 import { 
   BookOpenIcon, 
   ChartBarIcon, 
@@ -69,10 +70,15 @@ export default function Home() {
           <div className="mx-auto max-w-2xl text-center">
             <div className="mb-8 flex justify-center">
               <div className="relative rounded-full px-3 py-1 text-sm leading-6 text-gray-600 ring-1 ring-gray-900/10 hover:ring-gray-900/20">
-                <span className="font-semibold text-indigo-600">New:</span> AI-powered book formatting{' '}
-                <a href="#" className="whitespace-nowrap font-semibold">
+                <span className="font-semibold text-indigo-600">New:</span> Short stories from Wolly{' '}
+                <a
+                  href={FOLIO_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="whitespace-nowrap font-semibold text-indigo-600"
+                >
                   <span className="absolute inset-0" aria-hidden="true" />
-                  Learn more <span aria-hidden="true">&rarr;</span>
+                  Read on Folio <span aria-hidden="true">&rarr;</span>
                 </a>
               </div>
             </div>
@@ -231,6 +237,41 @@ export default function Home() {
                 </dd>
               </div>
             </dl>
+          </div>
+        </div>
+      </div>
+
+      {/* Short Stories (Folio) Section */}
+      <div id="short-stories" className="bg-gray-50 py-24 sm:py-32">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="relative isolate overflow-hidden rounded-3xl bg-gray-900 px-6 py-20 text-center shadow-2xl sm:px-16 sm:py-24">
+            <div className="absolute inset-0 -z-10 bg-gradient-to-br from-indigo-600/40 via-gray-900 to-purple-600/40" aria-hidden="true"></div>
+            <h2 className="text-base font-semibold leading-7 text-indigo-300">Fresh from Folio</h2>
+            <p className="mx-auto mt-2 max-w-2xl text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Check out our short stories
+            </p>
+            <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-gray-300">
+              Short reads to enjoy over a coffee, published on Folio. New stories drop regularly, and every one is free to read.
+            </p>
+            <div className="mt-10 flex items-center justify-center gap-x-6">
+              <a
+                href={FOLIO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex items-center justify-center rounded-full bg-white px-8 py-3 text-sm font-semibold text-gray-900 shadow-sm transition-all duration-200 hover:bg-indigo-50 hover:shadow-md"
+              >
+                Read short stories
+                <ArrowRightIcon className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </a>
+              <a
+                href={FOLIO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-semibold leading-6 text-white hover:text-indigo-200 transition-colors duration-200"
+              >
+                Visit Folio <span aria-hidden="true">→</span>
+              </a>
+            </div>
           </div>
         </div>
       </div>
