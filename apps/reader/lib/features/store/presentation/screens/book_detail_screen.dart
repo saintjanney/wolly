@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:wolly_mobile/features/library/domain/models/book.dart';
 import 'package:wolly_mobile/features/store/data/follow_repository.dart';
+import 'package:wolly_mobile/features/store/data/free_book_fallback.dart';
 import 'package:wolly_mobile/features/store/data/paystack_service.dart';
 import 'package:wolly_mobile/features/store/data/purchase_repository.dart';
 import 'package:wolly_mobile/read_book.dart';
@@ -131,27 +132,42 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       widget.book.id ??
       widget.book.downloadUrl.split('/').last.split('?').first;
 
+  void _showMessage(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
   /// Opens the reader with a freshly-issued download URL.
   ///
-  /// Paid book files no longer carry a permanent public token, so the URL stored
-  /// on the book document will not fetch them. The server issues a short-lived
-  /// signed URL after checking entitlement.
+  /// Book files do not carry a permanent public token, so the URL stored on the
+  /// book document will not fetch them. The server issues a short-lived signed
+  /// URL after checking entitlement.
+  ///
+  /// When the server cannot be reached at all, a FREE book is fetched directly
+  /// from Storage instead (see [FreeBookFallback]), so an outage of the
+  /// functions does not take the free catalogue with it. A paid book is not:
+  /// the server is the only thing that knows whether a sale happened.
   Future<void> _openReader() async {
     final book = widget.book;
 
     try {
       book.downloadUrl = await BookDownloadService.resolveUrl(_effectiveBookId);
+    } on BookServiceUnavailable {
+      if (!book.isFree) {
+        _showMessage('Wolly is briefly unavailable. Please try again in a moment.');
+        return;
+      }
+      try {
+        book.localPath = await FreeBookFallback.download(book, _effectiveBookId);
+      } catch (_) {
+        _showMessage('Could not open this book. Please try again.');
+        return;
+      }
     } on PaystackError catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      _showMessage(e.message);
       return;
     } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open this book. Please try again.')),
-      );
+      _showMessage('Could not open this book. Please try again.');
       return;
     }
 

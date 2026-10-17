@@ -108,7 +108,8 @@ export class ManuscriptService {
   /**
    * Resolves a working link to a pressed edition.
    *
-   * Pressed files live under `converted/`, which no client may read: the stored
+   * Pressed files live under `converted/`, which no client may read (the
+   * reader's free-book fallback excepted; see storage.rules): the stored
    * `epubUrl` and `pdfUrl` are identifiers, not usable links. This asks the
    * server for a short-lived signed URL, which is the same gate that enforces
    * purchase entitlement and rights revocation. An owner always passes it.

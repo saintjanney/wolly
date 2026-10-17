@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:epub_view/epub_view.dart';
 import 'package:epub_view/src/data/models/chapter_view_value.dart';
@@ -77,7 +78,12 @@ class _ReadEpubState extends State<ReadEpub> {
 
   Future<void> _loadEpub() async {
     try {
-      final data = await InternetFile.get(widget.book.downloadUrl);
+      // A file the free-book fallback already fetched through Storage, or the
+      // signed URL the server issued.
+      final local = widget.book.localPath;
+      final data = local != null
+          ? await File(local).readAsBytes()
+          : await InternetFile.get(widget.book.downloadUrl);
       if (!mounted) return;
 
       setState(() {

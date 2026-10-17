@@ -19,6 +19,12 @@ class Book {
   bool isFree;
   bool isPurchased;
 
+  /// Where the book's file is on this device, when it has been fetched without
+  /// the server (see `FreeBookFallback`). Transient: never written to
+  /// Firestore and not part of the reader contract. When set, the reader
+  /// screens open this file instead of fetching [downloadUrl].
+  String? localPath;
+
   Book({
     this.id,
     this.authorId,

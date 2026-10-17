@@ -66,11 +66,15 @@ a long book takes minutes to press.
 | `conversionStatus` | `requested \| processing \| ready \| failed` | client writes **only** `requested`; converter owns the rest | Writing `requested` again is how a retry is requested |
 | `conversionError` | string | converter | Reader-facing reason, present only when `failed` |
 | `conversion` | `BookConversion` | converter | `fingerprint`, `contentSha256`, `sourceFormat`, `wordCount`, `chapterCount`, `warnings[]`, `pressedAt` |
-| `epubUrl` / `pdfUrl` | string | converter | Under `converted/`, which **no client can read**. Resolve via `getBookDownloadUrl({bookId, format})` |
+| `epubUrl` / `pdfUrl` | string | converter | Under `converted/`, which clients cannot read (one exception below). Resolve via `getBookDownloadUrl({bookId, format})` |
 
 On success the press also overwrites `url` and `fileType` so the reader needs no
 change. Pressed files are **not** publicly readable: `storage.rules` denies
-`converted/**` outright and the bucket has no public IAM binding.
+`converted/**` to clients and the bucket has no public IAM binding. The one
+exception is a book whose document says `isFree` and `isPublished` with rights
+not `revoked`/`disputed`: a signed-in reader may fetch its files through the
+Firebase Storage SDK. That is how the reader opens a free book when
+`getBookDownloadUrl` is unreachable; it still asks the function first.
 
 ### Publishing Journey Report
 
