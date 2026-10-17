@@ -28,6 +28,19 @@ import 'package:wolly_mobile/features/library/domain/models/book.dart';
 class FreeBookFallback {
   FreeBookFallback._();
 
+  /// Whether [url] can be fetched as it is, with no server and no SDK.
+  ///
+  /// Books uploaded before the press carry a Firebase download URL with a
+  /// permanent `token`, which fetches regardless of rules. Those need no help:
+  /// the reader screens can fetch them directly, and going through the SDK
+  /// would actually fail, because the `books/` rule reads only for the owner.
+  static bool hasDownloadToken(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+    return uri.host == 'firebasestorage.googleapis.com' &&
+        (uri.queryParameters['token'] ?? '').isNotEmpty;
+  }
+
   /// Downloads [book]'s file to the app's temporary directory and returns the
   /// local path. Throws if the book is not free, if the stored URL cannot be
   /// mapped to a Storage object, or if Storage refuses the read.

@@ -158,7 +158,12 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         return;
       }
       try {
-        book.localPath = await FreeBookFallback.download(book, _effectiveBookId);
+        // A pre-press book keeps a permanent tokenised URL the screens can
+        // fetch as it is; a pressed one has to come through Storage.
+        if (!FreeBookFallback.hasDownloadToken(book.downloadUrl)) {
+          book.localPath =
+              await FreeBookFallback.download(book, _effectiveBookId);
+        }
       } catch (_) {
         _showMessage('Could not open this book. Please try again.');
         return;

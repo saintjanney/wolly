@@ -2,6 +2,34 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wolly_mobile/features/store/data/free_book_fallback.dart';
 
 void main() {
+  group('FreeBookFallback.hasDownloadToken', () {
+    test('is true for a Firebase download URL carrying a token', () {
+      expect(
+        FreeBookFallback.hasDownloadToken(
+          'https://firebasestorage.googleapis.com/v0/b/wolly-1133d.appspot.com/o/books%2Fuid%2Fbook1%2Fbook.pdf?alt=media&token=abc-123',
+        ),
+        isTrue,
+      );
+    });
+
+    test('is false for press URLs, token-less URLs and junk', () {
+      expect(
+        FreeBookFallback.hasDownloadToken(
+          'https://storage.googleapis.com/wolly-1133d.appspot.com/converted/book1/fp/book.epub',
+        ),
+        isFalse,
+      );
+      expect(
+        FreeBookFallback.hasDownloadToken(
+          'https://firebasestorage.googleapis.com/v0/b/wolly-1133d.appspot.com/o/x.epub?alt=media',
+        ),
+        isFalse,
+      );
+      expect(FreeBookFallback.hasDownloadToken('https://example.com/?token=x'), isFalse);
+      expect(FreeBookFallback.hasDownloadToken(''), isFalse);
+    });
+  });
+
   group('storagePathFromUrl', () {
     test('maps the press URL on storage.googleapis.com to the object path', () {
       expect(
