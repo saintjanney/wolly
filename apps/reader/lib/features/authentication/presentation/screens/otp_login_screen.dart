@@ -138,7 +138,66 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
           onChanged: (_) => setState(() => _errorMessage = ''),
           onSubmitted: (_) => _handleLogin(),
         ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _isLoading ? null : _sendPasswordReset,
+            child: Text(
+              'Forgot password?',
+              style: TextStyle(
+                  color: Colors.blue[700], fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
       ],
+    );
+  }
+
+  /// Emails a password-reset link for the address in the email field.
+  ///
+  /// The screen never had this, so a reader who had forgotten their password
+  /// had no way back in. Says nothing about whether the address has an
+  /// account: Firebase answers the same way either way, and so does this.
+  Future<void> _sendPasswordReset() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !_isValidEmail(email)) {
+      setState(() => _errorMessage =
+          'Enter your email address first, then tap "Forgot password?"');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    String? failure;
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'invalid-email') {
+        failure = 'Please enter a valid email address';
+      } else if (e.code == 'too-many-requests') {
+        failure = 'Too many attempts. Please wait a few minutes and try again.';
+      } else if (e.code != 'user-not-found') {
+        failure = e.message ?? 'Could not send the reset email. Please try again.';
+      }
+    } catch (_) {
+      failure = 'Network error. Please check your connection and try again.';
+    }
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (failure != null) {
+      setState(() => _errorMessage = failure!);
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+            'If an account exists for $email, a reset link is on its way. Check your inbox and spam folder.'),
+        duration: const Duration(seconds: 6),
+      ),
     );
   }
 
@@ -333,7 +392,7 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
         }
       } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
         setState(() => _errorMessage =
-            'Incorrect password. Please try again.');
+            'Incorrect password. Please try again, or tap "Forgot password?" to reset it.');
       } else {
         setState(
             () => _errorMessage = e.message ?? 'Sign in failed. Please try again.');
