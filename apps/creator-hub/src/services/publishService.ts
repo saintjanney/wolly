@@ -1,5 +1,6 @@
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
+import { isServerUnavailableError, SERVER_UNAVAILABLE_MESSAGE } from '@/lib/serverFeatures';
 
 import { db, functions } from '@/lib/firebase';
 import {
@@ -79,6 +80,9 @@ export class PublishService {
       });
       return data;
     } catch (error) {
+      if (isServerUnavailableError(error)) {
+        throw new PublishError(SERVER_UNAVAILABLE_MESSAGE, []);
+      }
       const err = error as { message?: string; details?: { problems?: Array<{ check: string; message: string }> } };
       throw new PublishError(
         err.message || 'Wolly could not record the agreement.',

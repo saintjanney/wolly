@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowTopRightOnSquareIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 
 import { ManuscriptService } from '@/services/manuscriptService';
+import { describeServerError, useServerFeatures } from '@/lib/serverFeatures';
 import type { ConversionStatus } from '@wolly/schema';
 
 /**
@@ -40,6 +41,7 @@ type State =
 
 export function EditionPreview({ bookId, conversionStatus, conversionError, pageCount }: Props) {
   const [state, setState] = useState<State>({ kind: 'idle' });
+  const server = useServerFeatures();
   // Held in a ref so the revoke on unmount cannot miss a URL created after the
   // last render, which would leak the whole PDF in memory for the session.
   const urlRef = useRef<string | null>(null);
@@ -61,7 +63,7 @@ export function EditionPreview({ bookId, conversionStatus, conversionError, page
     } catch (error) {
       setState({
         kind: 'unavailable',
-        message: (error as Error).message || 'Wolly could not load your preview.',
+        message: describeServerError(error, 'Wolly could not load your preview.'),
       });
     }
   }, [bookId, revoke]);
@@ -84,6 +86,19 @@ export function EditionPreview({ bookId, conversionStatus, conversionError, page
         </p>
         <p className="mt-2 text-sm text-gray-500">
           Upload the file again, or try saving it as .docx.
+        </p>
+      </Frame>
+    );
+  }
+
+  if ((conversionStatus === 'requested' || conversionStatus === 'processing') && server === 'unavailable') {
+    // The press is a server process. Spinning here while it is not running
+    // would promise something that is not coming until it is back.
+    return (
+      <Frame>
+        <p className="text-sm text-gray-700">
+          Typesetting is paused right now. Your manuscript is saved, and Wolly will typeset it
+          as soon as the press is back.
         </p>
       </Frame>
     );

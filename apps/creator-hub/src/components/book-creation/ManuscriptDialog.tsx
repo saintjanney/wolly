@@ -17,6 +17,11 @@ import {
   describeRejection,
   type ManuscriptState,
 } from '@/services/manuscriptService';
+import {
+  describeServerError,
+  describeUploadError,
+  useServerFeatures,
+} from '@/lib/serverFeatures';
 
 /**
  * The press, as an author sees it: hand over a manuscript, get a book back.
@@ -44,6 +49,7 @@ export function ManuscriptDialog({
   const [uploading, setUploading] = useState(false);
   const [watchError, setWatchError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const server = useServerFeatures();
 
   useEffect(() => {
     if (!open) return;
@@ -78,7 +84,7 @@ export function ManuscriptDialog({
         toast.error(
           error instanceof ManuscriptError
             ? error.message
-            : 'Could not upload that manuscript. Please try again.',
+            : describeUploadError(error, 'Could not upload that manuscript. Please try again.'),
         );
       } finally {
         setUploading(false);
@@ -118,7 +124,7 @@ export function ManuscriptDialog({
           ) : null}
 
           {busy ? (
-            <Working uploading={uploading} />
+            <Working uploading={uploading} paused={!uploading && server === 'unavailable'} />
           ) : status === 'ready' && state ? (
             <Ready
               bookId={bookId}
@@ -132,8 +138,8 @@ export function ManuscriptDialog({
                 try {
                   await ManuscriptService.retry(bookId);
                   toast.success('Trying again.');
-                } catch {
-                  toast.error('Could not start another attempt.');
+                } catch (error) {
+                  toast.error(describeServerError(error, 'Could not start another attempt.'));
                 }
               }}
               onReplace={() => inputRef.current?.click()}
@@ -182,7 +188,18 @@ function Empty({ onChoose }: { onChoose: () => void }) {
   );
 }
 
-function Working({ uploading }: { uploading: boolean }) {
+function Working({ uploading, paused }: { uploading: boolean; paused: boolean }) {
+  if (paused) {
+    return (
+      <div className="py-6 text-center">
+        <p className="font-medium">Typesetting is paused right now.</p>
+        <p className="mx-auto mt-1 max-w-sm text-sm text-gray-500">
+          Your manuscript is saved. Wolly will typeset it as soon as the press is back, and
+          you can close this and come back.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="py-6 text-center">
       <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900" />
@@ -307,7 +324,7 @@ function Download({
           window.open(url, '_blank', 'noopener,noreferrer');
         } catch (error) {
           console.error(error);
-          toast.error(`Could not open the ${label}. Please try again.`);
+          toast.error(describeServerError(error, `Could not open the ${label}. Please try again.`));
         } finally {
           setBusy(false);
         }

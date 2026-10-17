@@ -180,8 +180,12 @@ export default function Dashboard() {
             <StatCard
               name="Total Revenue"
               value={formatCurrency(overviewStats.totalRevenue, userCurrency)}
-              change="+12% this month"
-              changeType="positive"
+              change={
+                overviewStats.totalSales > 0
+                  ? `From ${overviewStats.totalSales.toLocaleString()} ${overviewStats.totalSales === 1 ? 'sale' : 'sales'}`
+                  : 'No sales yet'
+              }
+              changeType="neutral"
               icon={CurrencyDollarIcon}
               color="purple"
             />
@@ -195,16 +199,25 @@ export default function Dashboard() {
             <StatCard
               name="Total Sales"
               value={overviewStats.totalSales.toLocaleString()}
-              change="+8% this month"
-              changeType="positive"
+              change={
+                books.filter(b => b.isPublished).length > 0
+                  ? `Across ${books.filter(b => b.isPublished).length} published ${books.filter(b => b.isPublished).length === 1 ? 'book' : 'books'}`
+                  : 'Nothing published yet'
+              }
+              changeType="neutral"
               icon={ChartBarIcon}
               color="blue"
             />
           </div>
           <StatCard
             name="Average Rating"
-            value={overviewStats.averageRating.toFixed(1)}
-            change="Based on 1,240 reviews"
+            value={overviewStats.averageRating > 0 ? overviewStats.averageRating.toFixed(1) : '–'}
+            change={(() => {
+              const reviews = books.reduce((n, b) => n + (b.reviewCount ?? 0), 0);
+              return reviews > 0
+                ? `Based on ${reviews.toLocaleString()} ${reviews === 1 ? 'review' : 'reviews'}`
+                : 'No reviews yet';
+            })()}
             changeType="neutral"
             icon={StarIcon}
             color="yellow"
