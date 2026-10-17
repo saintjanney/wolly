@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   User as FirebaseUser,
@@ -27,6 +28,8 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
+  /** Emails a password-reset link. Resolves whether or not the email has an account. */
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   markOnboardingComplete: () => void;
 }
@@ -127,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         firebaseError.code === 'auth/invalid-credential' || 
         firebaseError.code === 'auth/user-not-found' || 
         firebaseError.code === 'auth/wrong-password'
-          ? 'Invalid email or password'
+          ? 'Email or password is incorrect. If you have forgotten your password, use "Forgot password?" below.'
           : firebaseError.code === 'auth/invalid-email'
           ? 'Invalid email address'
           : firebaseError.code === 'auth/user-disabled'
@@ -167,6 +170,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  /**
+   * Password reset, which this form did not have. Firebase Auth has had it all
+   * along; nothing here ever called it, so a reader who had an account from
+   * the mobile app and could not remember its password was simply stuck.
+   *
+   * Says nothing about whether the email has an account. Firebase's email
+   * enumeration protection already returns success either way, and the
+   * message matches that so the two cannot be told apart from the form.
+   */
+  const resetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error: unknown) {
+      console.error('[AuthContext] Password reset error:', error);
+      const firebaseError = error as { code?: string; message?: string };
+      const errorMessage =
+        firebaseError.code === 'auth/invalid-email'
+          ? 'Invalid email address'
+          : firebaseError.code === 'auth/user-not-found'
+          ? 'If an account exists for this email, a reset link has been sent.'
+          : firebaseError.code === 'auth/too-many-requests'
+          ? 'Too many attempts. Please wait a few minutes and try again.'
+          : firebaseError.message || 'Could not send the reset email. Please try again.';
+      // user-not-found is only reachable with enumeration protection off, and
+      // even then the form must not confirm it; treat it as success.
+      if (firebaseError.code === 'auth/user-not-found') return;
+      throw new Error(errorMessage);
+    }
+  };
+
   const logout = async () => {
     try {
       console.log('[AuthContext] Logging out');
@@ -192,7 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, logout, markOnboardingComplete }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, resetPassword, logout, markOnboardingComplete }}>
       {children}
     </AuthContext.Provider>
   );

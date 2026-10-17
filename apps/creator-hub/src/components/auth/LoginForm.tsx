@@ -10,7 +10,8 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const [isResetting, setIsResetting] = useState(false);
+  const { signIn, signUp, resetPassword } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,6 +64,27 @@ export default function LoginForm() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    const address = email.trim();
+    if (!address) {
+      toast.error('Enter your email address first, then tap "Forgot password?"');
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      await resetPassword(address);
+      toast.success(`If an account exists for ${address}, a reset link is on its way. Check your inbox and spam folder.`, {
+        duration: 8000,
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Could not send the reset email';
+      toast.error(errorMessage);
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="space-y-3">
@@ -85,6 +107,16 @@ export default function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+        </div>
+        <div className="text-right">
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            disabled={isSigningIn || isCreatingAccount || isResetting}
+            className="text-sm font-medium text-indigo-600 hover:text-indigo-500 disabled:opacity-60"
+          >
+            {isResetting ? 'Sending reset link...' : 'Forgot password?'}
+          </button>
         </div>
       </div>
 
