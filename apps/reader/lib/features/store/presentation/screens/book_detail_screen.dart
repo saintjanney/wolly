@@ -154,7 +154,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       book.downloadUrl = await BookDownloadService.resolveUrl(_effectiveBookId);
     } on BookServiceUnavailable {
       if (!book.isFree) {
-        _showMessage('Wolly is briefly unavailable. Please try again in a moment.');
+        _showMessage('Reading is temporarily unavailable. Please try again later.');
         return;
       }
       try {
@@ -164,6 +164,13 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           book.localPath =
               await FreeBookFallback.download(book, _effectiveBookId);
         }
+      } on FirebaseException catch (e) {
+        // Storage answering 402 (reported as quota-exceeded) means the files
+        // themselves are off, which no fallback can get around.
+        _showMessage(e.code == 'quota-exceeded' || e.code == 'unknown'
+            ? 'Reading is temporarily unavailable. Please try again later.'
+            : 'Could not open this book. Please try again.');
+        return;
       } catch (_) {
         _showMessage('Could not open this book. Please try again.');
         return;

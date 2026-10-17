@@ -56,6 +56,10 @@ class PaystackService {
     return user?.getIdToken();
   }
 
+  /// What the reader sees when the payments service cannot be reached.
+  static const unavailableMessage =
+      'Purchases are temporarily unavailable. Please try again later.';
+
   static Future<Map<String, dynamic>> _post(
     String fn,
     Map<String, dynamic> body,
@@ -63,20 +67,31 @@ class PaystackService {
     final token = await _idToken();
     if (token == null) throw const PaystackError('Please sign in to buy books.');
 
-    final res = await http.post(
-      Uri.parse('$_base/$fn'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode(body),
-    );
+    final http.Response res;
+    try {
+      res = await http
+          .post(
+            Uri.parse('$_base/$fn'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 20));
+    } on Exception {
+      throw const PaystackError(unavailableMessage);
+    }
+
+    // A 5xx, or a body that is not JSON (Google's own error page), is the
+    // platform not answering, not a decision about this reader or this book.
+    if (res.statusCode >= 500) throw const PaystackError(unavailableMessage);
 
     Map<String, dynamic> decoded;
     try {
       decoded = jsonDecode(res.body) as Map<String, dynamic>;
     } catch (_) {
-      throw PaystackError('Unexpected response from the server (${res.statusCode}).');
+      throw const PaystackError(unavailableMessage);
     }
 
     if (res.statusCode != 200) {
