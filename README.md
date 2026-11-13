@@ -3,6 +3,9 @@
 Wolly is a book publishing & reading platform. This monorepo contains all of its
 surfaces plus the shared contracts that keep them in sync.
 
+For the source-based feature assessment and proposed Go backend rebuild, start
+with [docs/rebuild/README.md](docs/rebuild/README.md).
+
 ```
 wolly/
 ├── apps/
