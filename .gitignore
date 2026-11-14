@@ -42,3 +42,9 @@ yarn-error.log*
 # Next.js build output (blog app is SSR, not static export)
 .next/
 .firebase/
+
+# Go rebuild local outputs
+backend/go/bin/
+coverage/
+*.test
+# Local environment files remain ignored, with only examples committed.

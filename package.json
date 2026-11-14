@@ -1,28 +1,33 @@
 {
   "name": "wolly-platform",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "private": true,
-  "description": "Wolly \u2014 book publishing & reading platform (monorepo)",
   "workspaces": [
     "apps/creator-hub",
     "apps/backoffice",
     "apps/blog",
-    "packages/*",
-    "services/*"
+    "apps/storefront",
+    "packages/api-client",
+    "services/converter"
   ],
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "deploy": "turbo run build && firebase deploy --only hosting,firestore,storage,functions:api",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "contracts:generate": "python3 scripts/generate-contract-types.py",
+    "contracts:check": "python3 scripts/generate-contract-types.py --check",
+    "check:boundaries": "python3 scripts/check-boundaries.py"
   },
   "devDependencies": {
     "turbo": "^2.3.0"
   },
-  "packageManager": "npm@10.9.7",
+  "packageManager": "npm@10.9.9",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.18"
+  },
+  "overrides": {
+    "postcss": "^8.5.23",
+    "minimatch": "^11.0.1"
   }
 }

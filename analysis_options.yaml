@@ -1,0 +1,4 @@
+analyzer:
+  exclude:
+    - legacy/**
+    - node_modules/**

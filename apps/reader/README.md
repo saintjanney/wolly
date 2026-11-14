@@ -1,52 +1,15 @@
-# Wolly
+# Reader mobile module
 
-A Flutter application for reading books.
-
-## Project Architecture
-
-This project follows a feature-first architecture with BLoC pattern for state management.
-
-### Directory Structure
+Independent Flutter application. Active source has no cloud SDK. Original reader screens, BLoC and rendering behavior are retained at `../../legacy/apps/reader` as migration reference; the active app currently verifies capability connectivity only. Port each feature behind domain repository interfaces and `lib/core/api/`, using the Go contract and coordinated DTO verification.
 
 ```
-lib/
-├── core/                  # Core functionality used across features
-│   ├── services/          # Common services
-│   ├── theme/             # App theme
-│   ├── utils/             # Utility functions
-│   └── widgets/           # Shared widgets
-│
-├── features/              # Features of the application
-│   ├── authentication/    # Authentication feature
-│   │   ├── data/          # Data layer (repositories, data sources)
-│   │   ├── domain/        # Domain layer (entities, events, states)
-│   │   └── presentation/  # Presentation layer
-│   │       ├── bloc/      # BLoC classes
-│   │       ├── screens/   # UI screens
-│   │       └── widgets/   # Feature-specific widgets
-│   │
-│   ├── dashboard/         # Dashboard feature
-│   ├── library/           # Library feature
-│   └── profile/           # Profile feature
-│
-├── firebase_options.dart  # Firebase configuration
-└── main.dart              # Entry point
+flutter pub get
+flutter test
+flutter run --dart-define=WOLLY_API_ORIGIN=http://10.0.2.2:8080
 ```
 
-### State Management
+Start `make api` at the repository root. `10.0.2.2` is the Android emulator's host alias; a physical device needs a reachable LAN/HTTPS origin and API binding. Debug Android permits local HTTP; release connections should use HTTPS. iOS generated platform scaffolding is present, but no iOS distribution/device acceptance is claimed. Browser consumption is the separate `apps/storefront` module; this reader uses native HTTP and is not currently a Flutter web build.
 
-This project uses the BLoC (Business Logic Component) pattern for state management. Each feature has its own BLoC that handles the business logic and state for that feature.
+Feature folders should contain domain/repository contracts, API adapters, and presentation/BLoC; API responses are wire DTOs, never database documents. Authentication/secure storage, profile sessions, ebook/audio readers and offline behavior remain roadmap work. The current client validates the executable capability wire contract; future typed client generation is a prerequisite to adding business DTOs.
 
-### Key Components
-
-- **Repository**: Handles data operations and abstracts the data source
-- **BLoC**: Manages state and business logic
-- **Events**: Represent actions that can be performed
-- **States**: Represent the current state of the application
-- **Screens**: UI components that display data and handle user interactions
-
-## Getting Started
-
-1. Clone the repository
-2. Run `flutter pub get` to install dependencies
-3. Run `flutter run` to start the application
+Native application IDs remain `com.example.wolly` for continuity. Version/build numbers and production signing must be checked against the actual release inventory before distribution; no production/debug-key release signing is configured here. The new scaffolding does not migrate old device cache/auth data automatically.

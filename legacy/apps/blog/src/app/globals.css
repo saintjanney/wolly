@@ -1,0 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --wolly-accent: #4338ca;
+    --wolly-ink: #1a1a1a;
+    --wolly-muted: #6b7280;
+    --wolly-rule: #e5e7eb;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    color: var(--wolly-ink);
+    background: #fff;
+  }
+}
+
+/**
+ * Post body typography.
+ *
+ * Post HTML is rendered and sanitised server-side from the composer's TipTap
+ * JSON, so the tag set here is closed and known. Styling it with a scoped
+ * stylesheet rather than utility classes keeps the stored HTML clean and
+ * portable, and the same markup is what goes out in the newsletter email.
+ */
+.post-body {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 1.175rem;
+  line-height: 1.75;
+  color: var(--wolly-ink);
+}
+
+.post-body > * + * { margin-top: 1.35em; }
+
+.post-body h2 {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 1.6rem;
+  font-weight: 650;
+  line-height: 1.25;
+  margin-top: 2.2em;
+}
+
+.post-body h3 {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 1.28rem;
+  font-weight: 600;
+  margin-top: 1.9em;
+}
+
+.post-body a {
+  color: var(--wolly-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.post-body blockquote {
+  border-left: 3px solid var(--wolly-accent);
+  padding-left: 1.1em;
+  font-style: italic;
+  color: #374151;
+}
+
+.post-body ul,
+.post-body ol { padding-left: 1.5em; }
+.post-body ul { list-style: disc; }
+.post-body ol { list-style: decimal; }
+.post-body li + li { margin-top: 0.4em; }
+
+.post-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.post-body figure figcaption {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 0.85rem;
+  color: var(--wolly-muted);
+  text-align: center;
+  margin-top: 0.6em;
+}
+
+.post-body pre {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  background: #f6f8fa;
+  border: 1px solid var(--wolly-rule);
+  border-radius: 6px;
+  padding: 1em 1.1em;
+  overflow-x: auto;
+}
+
+.post-body :not(pre) > code {
+  font-size: 0.9em;
+  background: #f3f4f6;
+  border-radius: 3px;
+  padding: 0.15em 0.35em;
+}
+
+.post-body hr {
+  border: 0;
+  border-top: 1px solid var(--wolly-rule);
+  margin: 2.4em 0;
+}

@@ -1,3 +1,5 @@
+> Historical product/implementation reference. Active modules use the Go API and the revised contracts in `docs/rebuild`; cloud-specific descriptions below are not active setup instructions.
+
 # Wolly Blog: feature specification
 
 Status: **decisions settled, ready for Phase 0**. Author: platform.

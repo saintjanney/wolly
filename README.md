@@ -1,64 +1,30 @@
-# Wolly Platform (monorepo)
+# Wolly
 
-Wolly is a book publishing & reading platform. This monorepo contains all of its
-surfaces plus the shared contracts that keep them in sync.
-
-For the source-based feature assessment and proposed Go backend rebuild, start
-with [docs/rebuild/README.md](docs/rebuild/README.md).
+A modular monorepo for the Go rebuild: independent web/Flutter frontend apps, a modular Go API/worker, explicit wire contracts, and isolated supporting adapters.
 
 ```
-wolly/
-├── apps/
-│   ├── reader/         # Flutter mobile app — readers browse & read books (BLoC)
-│   ├── creator-hub/    # Next.js web app — authors create, publish & track books
-│   └── backoffice/     # Next.js web app — staff moderation / publishing workflow (Phase 5)
-├── packages/
-│   ├── schema/         # Canonical Firestore types — SINGLE SOURCE OF TRUTH (TS)
-│   └── firebase-config/# Shared firestore.rules, storage.rules, firestore.indexes.json
-├── firebase.json       # Unified multi-site Firebase Hosting + Firestore/Storage rules
-└── SCHEMA.md           # Human-readable schema contract (mirrored into the Dart reader)
+apps/                 storefront, creator-hub, backoffice, blog, reader
+backend/go/           cmd/api, cmd/worker, internal domain modules, migrations
+contracts/openapi/    implemented HTTP wire contract
+packages/api-client/  shared web transport and generated DTOs
+services/converter/   isolated manuscript conversion implementation
+infra/local/          optional PostgreSQL development container
+legacy/               excluded pre-rebuild UI/server/schema references
+docs/development/     concrete workspace and module rules
+docs/rebuild/         product scope, architecture, roadmap and release plan
 ```
 
-All apps share one Firebase project (`wolly-1133d`): Auth, Firestore, Storage.
+Start the API with `make api`. In another terminal:
 
-## Tooling
-
-- **JS apps & packages** (`apps/creator-hub`, `apps/backoffice`, `packages/*`) are
-  managed with **npm workspaces + Turborepo**. The Flutter `reader` app is *not*
-  part of the npm workspace — it uses its own `pub`/`flutter` toolchain.
-
-```bash
-npm install          # install all JS workspace deps
-npm run dev          # turbo: run dev for all JS apps
-npm run build        # turbo: build all JS apps
-npm run lint         # turbo: lint all JS apps
+```
+npm ci --ignore-scripts
+npm run dev --workspace @wolly/creator-hub
 ```
 
-For the reader:
+Web apps use ports 3000–3003 (storefront, Creator Hub, Backoffice, blog). Each has its own README and server-only `.env.example`. Mobile uses its own Flutter package; see [reader setup](apps/reader/README.md).
 
-```bash
-cd apps/reader
-flutter pub get
-flutter run
-```
+The current app entry points verify Go API connectivity. Original screens are preserved in `legacy/apps` for per-feature porting; authentication, database persistence, publishing, payments, reading and profile flows are not implemented by this restructure. The API deliberately reports business readiness as unavailable and all capabilities disabled. This is not a replacement production release.
 
-## The shared contract
+Use `make test`, `make check`, `make build` and the [workspace guide](docs/development/WORKSPACE.md) for commands, boundaries, contract generation, CI and later service extraction. No active Firebase runtime or automatic deployment remains. Nothing has been deployed and no external cloud resources have been changed.
 
-The reader and creator-hub both read/write the same Firestore collections. To stop
-the two apps from drifting (a real bug we hit: the hub wrote a `books` collection
-the reader never read), the document shapes live in **one place**:
-
-- TypeScript apps import them from `@wolly/schema`.
-- The Dart reader mirrors them; `SCHEMA.md` is the canonical human-readable reference.
-
-Books published in the Creator Hub are written to the **`epubs`** collection in the
-shape the reader expects, so they appear in the reader immediately.
-
-## Deployment
-
-CI (`.github/workflows/deploy.yml`) deploys on push: `develop` → mock, `main` → prod.
-
-- **Web** (`creator-hub`, `backoffice`) deploy to Firebase Hosting multi-site
-  targets (`wolly-creator-hub`, `wolly-backoffice` in `.firebaserc`).
-- **Reader** is a **mobile app only** — it ships as an Android APK via Firebase
-  App Distribution (`qa` / `production` tester groups). It has no web Hosting site.
+Product decisions and release sequencing start in [the rebuild index](docs/rebuild/README.md). The current executable API/schema boundary is described in [SCHEMA.md](SCHEMA.md).

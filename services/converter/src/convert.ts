@@ -56,7 +56,7 @@ export class EmptyManuscriptError extends Error {
   }
 }
 
-/** Firestore documents cap at 1MiB, but Storage objects do not; this guards
+/** Bound source inputs before parsing and browser processing; this guards
  *  runaway inputs (a 300MB "manuscript") before Chromium sees them. */
 const MAX_MANUSCRIPT_BYTES = 50 * 1024 * 1024;
 
@@ -70,7 +70,7 @@ export class ManuscriptTooLargeError extends Error {
 /**
  * The whole press, as a pure function: manuscript in, both formats out.
  *
- * No Firebase in here. That is what makes the conversion testable against a
+ * No storage/provider SDK is imported. This makes conversion testable against a
  * corpus of fixture manuscripts without emulators, which is what "must work
  * flawlessly" has to mean in practice: every fixture presses to a valid EPUB
  * and a valid PDF on every CI run.

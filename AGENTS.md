@@ -2,11 +2,9 @@
 
 ## Branching & deploys
 
-- Work only on `develop` or `main`. Do **not** create feature/`claude/*` branches.
-- `develop` deploys to the **mock** environment; `main` deploys to **prod**.
-- Web surfaces deploy to their Firebase Hosting targets; the mobile reader is
-  distributed as an Android APK via Firebase App Distribution. See
-  `.github/workflows/deploy.yml`.
+- The user explicitly authorised the `Go-Rebuild` branch for this rebuild. Stay on it for this work; do not create additional feature branches.
+- `develop` / `main` remain future integration/release branches. The old automatic cloud deployment has been removed; no deployment is implied by this scaffold.
+- Independent frontend modules live in `apps/`; Go modules live in `backend/go`. Follow `docs/development/WORKSPACE.md` and the API contract in `contracts/openapi`.
 
 ## Commit & PR rules
 
@@ -17,10 +15,11 @@
 
 ## Secrets
 
-- Never commit credentials. The Firebase service-account JSON lives only in the
-  GitHub Actions secret `FIREBASE_SERVICE_ACCOUNT`.
+- Never commit credentials. Use ignored environment files and externally managed production secrets. Legacy reference code must not be deployed.
 
-## Schema
+## Contracts and module ownership
 
-- Firestore document shapes are defined once in `@wolly/schema` and documented in
-  `SCHEMA.md`. Change both (and the mirrored Dart models) together.
+- OpenAPI is the executable HTTP contract; update Go handlers and generated/verified web/Dart wire models together.
+- SQL migrations are owned by a backend domain; frontend apps never access the database or import archived storage shapes.
+- Keep `legacy/` outside active builds. Use it only to port behavior behind the API.
+- Run contract drift and module boundary checks plus relevant Go/web/Flutter verification for changes.

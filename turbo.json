@@ -1,6 +1,10 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
     "build": {
       "dependsOn": [
         "^build"
@@ -8,17 +12,17 @@
       "outputs": [
         ".next/**",
         "!.next/cache/**",
-        "out/**",
-        "dist/**",
         "lib/**"
+      ],
+      "env": [
+        "WOLLY_API_ORIGIN"
       ]
     },
-    "dev": {
-      "cache": false,
-      "persistent": true
+    "typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ]
     },
-    "lint": {},
-    "typecheck": {},
     "test": {
       "dependsOn": [
         "^build"
@@ -26,9 +30,6 @@
     }
   },
   "globalPassThroughEnv": [
-    "GOOGLE_APPLICATION_CREDENTIALS",
-    "FIREBASE_SERVICE_ACCOUNT",
-    "GCLOUD_PROJECT",
     "PUPPETEER_EXECUTABLE_PATH"
   ]
 }

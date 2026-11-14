@@ -1,3 +1,5 @@
+> Historical product/implementation reference. Active modules use the Go API and the revised contracts in `docs/rebuild`; cloud-specific descriptions below are not active setup instructions.
+
 # Content traceability and rights enforcement
 
 What Wolly can actually do about a book that leaks, and what it cannot. Written

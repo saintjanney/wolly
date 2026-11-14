@@ -82,36 +82,9 @@ ${withInlineImages}
 </html>`;
 }
 
-/**
- * Deterministic rendering, and survival inside a container.
- *
- * `--disable-dev-shm-usage` is not optional in serverless: /dev/shm is a few MB
- * there, and Chromium crashes mid-render without it rather than failing to start.
- */
-const BROWSER_ARGS = [
-  '--no-sandbox',
-  '--disable-dev-shm-usage',
-  '--disable-gpu',
-  '--font-render-hinting=none',
-];
+/** Start a local/private adapter browser, using an explicit path or installed Puppeteer browser. */
+const BROWSER_ARGS = ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--font-render-hinting=none'];
 
-/**
- * Finds a Chromium to run, in a declared order, and says so when it cannot.
- *
- * The order is explicit rather than try/catch-and-fall-through. An earlier
- * version caught every failure and fell back to the serverless Linux binary,
- * so a broken local browser surfaced as "Malformed Mach-o file" from a binary
- * that was never going to run on macOS, instead of naming the real problem.
- *
- *   1. PUPPETEER_EXECUTABLE_PATH  - an operator-supplied browser. CI and any
- *      machine whose puppeteer download was blocked use this.
- *   2. K_SERVICE / FUNCTION_TARGET - set by Cloud Functions and Cloud Run, so
- *      the deployed press uses @sparticuz/chromium's serverless build.
- *   3. the `puppeteer` devDependency and its bundled browser, for local dev.
- *
- * `puppeteer` is a devDependency precisely so it is absent in production; step 2
- * is what runs there, and step 3 must never be reached.
- */
 async function launchBrowser() {
   const explicitPath = process.env.PUPPETEER_EXECUTABLE_PATH;
   if (explicitPath) {
@@ -123,15 +96,6 @@ async function launchBrowser() {
     });
   }
 
-  if (process.env.K_SERVICE || process.env.FUNCTION_TARGET) {
-    const chromium = (await import('@sparticuz/chromium')).default;
-    const core = await import('puppeteer-core');
-    return core.default.launch({
-      args: [...chromium.args, '--font-render-hinting=none'],
-      executablePath: await chromium.executablePath(),
-      headless: true,
-    });
-  }
 
   try {
     const local = await import('puppeteer');

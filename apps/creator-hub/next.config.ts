@@ -1,13 +1,3 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  output: 'export',
-  trailingSlash: true,
-  images: {
-    unoptimized: true
-  },
-  // Consume the shared canonical schema package directly from source.
-  transpilePackages: ['@wolly/schema']
-};
-
-export default nextConfig;
+import type { NextConfig } from 'next';
+const config: NextConfig = { output:'standalone', transpilePackages:['@wolly/api-client'] };
+export default config;

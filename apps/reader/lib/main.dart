@@ -1,176 +1,67 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:wolly_mobile/core/theme/app_theme.dart';
-import 'package:wolly_mobile/features/authentication/data/auth_repository.dart';
-import 'package:wolly_mobile/features/authentication/presentation/bloc/auth_bloc.dart';
-import 'package:wolly_mobile/features/authentication/presentation/screens/account_creation_screen.dart';
-import 'package:wolly_mobile/features/dashboard/data/dashboard_repository.dart';
-import 'package:wolly_mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
-import 'package:wolly_mobile/features/dashboard/presentation/screens/dashboard_screen.dart';
-import 'package:wolly_mobile/features/genre/data/genre_repository.dart';
-import 'package:wolly_mobile/features/genre/presentation/bloc/genre_bloc.dart';
-import 'package:wolly_mobile/features/library/presentation/screens/file_download_example_screen.dart';
-import 'package:wolly_mobile/features/library/presentation/screens/genre_books.dart';
-import 'package:wolly_mobile/features/library/presentation/screens/genre_page.dart';
-import 'package:wolly_mobile/features/genre/domain/models/genre.dart';
-import 'package:wolly_mobile/core/bloc/reader_settings_cubit.dart';
-import 'package:wolly_mobile/features/store/presentation/screens/book_detail_screen.dart';
-import 'package:wolly_mobile/features/library/presentation/screens/search_screen.dart';
-import 'package:wolly_mobile/features/library/domain/models/book.dart';
-import 'package:wolly_mobile/features/library/presentation/screens/library.dart';
-import 'package:wolly_mobile/features/onboarding/presentation/screens/onboarding_screen.dart';
-import 'package:wolly_mobile/core/widgets/auth_gate.dart';
-import 'package:wolly_mobile/Screens/login/otp_verify.dart';
-import 'package:wolly_mobile/features/profile/presentation/screens/profile_screen.dart';
-import 'package:wolly_mobile/features/authentication/presentation/screens/otp_login_screen.dart';
-import 'firebase_options.dart';
-import 'package:flexify/flexify.dart';
+import 'core/api/wolly_api.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  // make navigation bar transparent
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      systemNavigationBarColor: Colors.transparent,
-    ),
-  );
-  // make flutter draw behind navigation bar
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+void main() => runApp(const WollyReader());
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // Create repositories
-  final authRepository = AuthRepository();
-  final dashboardRepository = DashboardRepository();
-  final genreRepository = GenreRepository();
-
-  runApp(
-    MultiBlocProvider(
-      providers: [
-        BlocProvider<AuthBloc>(
-          create: (context) => AuthBloc(authRepository: authRepository),
-        ),
-        BlocProvider<DashboardBloc>(
-          create: (context) =>
-              DashboardBloc(dashboardRepository: dashboardRepository),
-        ),
-        BlocProvider<GenreBloc>(
-          create: (context) => GenreBloc(genreRepository: genreRepository),
-        ),
-        BlocProvider<ReaderSettingsCubit>(
-          create: (context) => ReaderSettingsCubit(),
-        ),
-      ],
-      child: const MyApp(),
-    ),
-  );
+class WollyReader extends StatelessWidget {
+  const WollyReader({super.key});
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        title: 'Wolly reader',
+        theme: ThemeData(colorSchemeSeed: const Color(0xff224e43)),
+        home: const ConnectionScreen(),
+      );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
+class ConnectionScreen extends StatefulWidget {
+  const ConnectionScreen({super.key});
   @override
-  Widget build(BuildContext context) {
-    return Flexify(
-      designWidth: 390,
-      designHeight: 844,
-      app: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Wolly',
-        onGenerateRoute: (settings) {
-          switch (settings.name) {
-            case '/otp_verify':
-              final args = settings.arguments as Map<String, dynamic>;
-              final verificationId = args['verificationId'] as String;
-              final phoneNumber = args['phoneNumber'] as String;
+  State<ConnectionScreen> createState() => _ConnectionScreenState();
+}
 
-              return MaterialPageRoute(
-                builder: (context) => OtpVerify(
-                  verificationId: verificationId,
-                  phoneNumber: phoneNumber,
-                ),
-              );
-            case '/account_creation':
-              final args = settings.arguments;
-              String email = '';
-              bool alreadyAuthenticated = false;
-              if (args is String) {
-                email = args;
-              } else if (args is Map<String, dynamic>) {
-                email = args['email'] as String? ?? '';
-                alreadyAuthenticated =
-                    args['alreadyAuthenticated'] as bool? ?? false;
-              }
-              return MaterialPageRoute(
-                builder: (context) => AccountCreationScreen(
-                  userEmail: email,
-                  alreadyAuthenticated: alreadyAuthenticated,
-                ),
-              );
-            // case '/':
-            //   return MaterialPageRoute(
-            //     builder: (context) => const Login(),
-            //   );
-            case '/':
-              return MaterialPageRoute(
-                builder: (context) => const AuthGate(),
-              );
-            case '/dashboard':
-              return MaterialPageRoute(
-                builder: (context) => const DashboardScreen(),
-              );
-            case '/library':
-              return MaterialPageRoute(
-                builder: (context) => Library(),
-              );
-            case '/profile_info':
-              return MaterialPageRoute(
-                builder: (context) => const ProfileScreen(),
-              );
-            case '/file_download_example':
-              return MaterialPageRoute(
-                builder: (context) => const FileDownloadExampleScreen(),
-              );
-            case '/genres':
-              return MaterialPageRoute(
-                builder: (context) => const GenrePage(),
-              );
-            case '/genre_books':
-              final genre = settings.arguments as Genre;
-              return MaterialPageRoute(
-                builder: (context) => GenreBooks(genre: genre),
-              );
-            case '/search':
-              return MaterialPageRoute(
-                builder: (context) => const SearchScreen(),
-              );
-            case '/book_detail':
-              final book = settings.arguments as Book;
-              return MaterialPageRoute(
-                builder: (context) => BookDetailScreen(book: book),
-              );
-            case '/onboarding':
-              return MaterialPageRoute(
-                builder: (context) => const OnboardingScreen(),
-              );
-            case '/login':
-              return MaterialPageRoute(
-                builder: (context) => const OtpLoginScreen(),
-              );
-            default:
-              return MaterialPageRoute(
-                builder: (context) => const OtpLoginScreen(),
-              );
-          }
-        },
-        theme: AppTheme.lightTheme,
-        initialRoute: "/",
-      ),
-    );
+class _ConnectionScreenState extends State<ConnectionScreen> {
+  final api = WollyApi(const String.fromEnvironment('WOLLY_API_ORIGIN',
+      defaultValue: 'http://127.0.0.1:8080'));
+  late Future<List<Capability>> pending;
+  @override
+  void initState() {
+    super.initState();
+    pending = api.capabilities();
   }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Wolly reader')),
+        body: Padding(
+            padding: const EdgeInsets.all(24),
+            child: FutureBuilder<List<Capability>>(
+              future: pending,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                            'The Wolly API is unavailable. Check your configured API origin.'),
+                        FilledButton(
+                            onPressed: () => setState(() {
+                                  pending = api.capabilities();
+                                }),
+                            child: const Text('Retry')),
+                      ]);
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return ListView(children: [
+                  const Text('API connected', style: TextStyle(fontSize: 26)),
+                  const Text(
+                      'Integration workspace. Reader features are not implemented yet.'),
+                  ...snapshot.data!.map((item) => ListTile(
+                      title: Text(item.id),
+                      trailing: Text(item.enabled ? 'Available' : 'Planned'))),
+                ]);
+              },
+            )),
+      );
 }

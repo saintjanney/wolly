@@ -1,50 +1,13 @@
-import Link from 'next/link';
-
-import { listPublications } from '@/lib/blog-data';
-
-export const revalidate = 900;
-
-export default async function HomePage() {
-  const publications = await listPublications(50);
-
-  return (
-    <div className="mx-auto max-w-3xl px-5 py-16">
-      <h1 className="text-4xl font-bold tracking-tight">Wolly</h1>
-      <p className="mt-3 text-lg text-[var(--wolly-muted)]">
-        Writing from Wolly creators.
-      </p>
-
-      <Link
-        href="/discover"
-        className="mt-6 inline-block rounded-lg bg-[var(--wolly-accent)] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"
-      >
-        Browse recent posts
-      </Link>
-
-      {publications.length > 0 ? (
-        <section className="mt-14">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--wolly-muted)]">
-            Publications
-          </h2>
-          <ul className="mt-4 divide-y divide-[var(--wolly-rule)]">
-            {publications.map((publication) => (
-              <li key={publication.id} className="py-4">
-                <Link
-                  href={`/@${publication.slug}`}
-                  className="font-medium hover:underline underline-offset-4"
-                >
-                  {publication.name}
-                </Link>
-                {publication.tagline ? (
-                  <p className="mt-0.5 text-sm text-[var(--wolly-muted)]">
-                    {publication.tagline}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-    </div>
-  );
+"use client";
+import {useEffect, useState} from 'react';
+import {createApiClient, type CapabilitiesEnvelope} from '@wolly/api-client';
+export default function Page() {
+ const [data,setData]=useState<CapabilitiesEnvelope|null>(null);
+ const [error,setError]=useState('');
+ const [attempt,setAttempt]=useState(0);
+ useEffect(()=>{const controller=new AbortController(); setError('');setData(null);
+ createApiClient('/api/v1').capabilities(AbortSignal.any([controller.signal,AbortSignal.timeout(5000)])).then(setData).catch(err=>{if(!controller.signal.aborted)setError(err instanceof Error?err.message:'Connection failed')});
+ return ()=>controller.abort();},[attempt]);
+ return <main><p className="eyebrow">Wolly · Go rebuild</p><h1>Publication channels</h1><p>This app is an independent API integration workspace. Product features are being rebuilt.</p>
+ {error ? <section role="alert"><p>{error}</p><button onClick={()=>setAttempt(attempt+1)}>Retry connection</button></section> : !data ? <p role="status">Connecting to Wolly…</p> : <section><h2>API connected</h2><p>Contract {data.data.contractVersion}. Business capabilities remain disabled.</p><ul>{data.data.modules.map(item=><li key={item.id}>{item.id} <span>{item.enabled?'Available':'Planned'}</span></li>)}</ul></section>}</main>;
 }

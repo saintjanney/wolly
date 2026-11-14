@@ -4,8 +4,13 @@
     {
       "name": "creator-hub",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--workspace", "wolly-creator-hub", "run", "dev"],
-      "port": 3000,
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--workspace",
+        "@wolly/creator-hub"
+      ],
+      "port": 3001,
       "autoPort": true
     }
   ]

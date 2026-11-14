@@ -1,21 +1,4 @@
-import type { Metadata } from "next";
-import { Toaster } from "react-hot-toast";
-import "./globals.css";
-
-export const metadata: Metadata = {
-  title: "Wolly Backoffice",
-  description: "Staff console for moderation and publishing on the Wolly platform.",
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <html lang="en">
-      <body>
-        {children}
-        <Toaster position="top-right" />
-      </body>
-    </html>
-  );
-}
+import type { ReactNode } from 'react';
+import './globals.css';
+export const metadata = {title:'Wolly — Staff Backoffice'};
+export default function Layout({children}:{children:ReactNode}){return <html lang="en"><body>{children}</body></html>}
